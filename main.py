@@ -716,7 +716,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     # مدیریت گروه‌ها
-    app.add_handler(MessageHandler(filters.ChatType.GROUPS | filters.ChatType.CHANNELS, register_group))
+    app.add_handler(MessageHandler(filters.ChatType.GROUPS | filters.ChatType.CHANNEL, register_group))
     
     # مدیریت مدیران
     admin_conv_handler = ConversationHandler(
