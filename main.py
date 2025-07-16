@@ -19,7 +19,7 @@ import logging
 # تنظیمات اولیه
 OWNER_ID = 1305174339
 BOT_TOKEN = "6990923109:AAEdRDVnU-YgIUMGh23RKJJiV1xHJZOfeEE"
-WEBHOOK_URL = "آدرس_وبهوک_شما"
+WEBHOOK_URL = "https://mafia-bot-cq0h.onrender.com"
 ADMINS_FILE = "admins.json"
 GROUPS_FILE = "groups.json"
 LISTS_FILE = "active_lists.json"
