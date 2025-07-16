@@ -766,12 +766,11 @@ def main():
     app.add_error_handler(error_handler)
     
     # تنظیم وب‌هوک
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=8443,
-        secret_token="WEBHOOK_SECRET",
-        webhook_url=WEBHOOK_URL
-    )
+   app.run_webhook(
+    listen="0.0.0.0",
+    port=int(os.environ.get("PORT", 10000)),  # Render uses $PORT
+    webhook_url=WEBHOOK_URL
+)
 
 if __name__ == '__main__':
     main()
