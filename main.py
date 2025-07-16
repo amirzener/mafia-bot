@@ -445,7 +445,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     for chat_id, chat_info in groups.items():
         try:
-            message = await update.message.bot.send_message(
+            message = await context.bot.send_message(
                 chat_id=chat_id,
                 text=generate_list_text(list_id),
                 reply_markup=KeyboardManager.get_list_keyboard(
@@ -496,7 +496,7 @@ def generate_list_text(list_id):
     
     return text
 
-async def update_list_messages(list_id):
+async def update_list_messages(list_id, context: ContextTypes.DEFAULT_TYPE):
     active_lists = DataManager.load_data(LISTS_FILE)
     if list_id not in active_lists:
         return
@@ -552,7 +552,7 @@ async def join_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     DataManager.save_data(USERS_FILE, users)
     
     await query.answer("✅ به لیست بازیکنان اضافه شدید!", show_alert=True)
-    await update_list_messages(list_id)
+    await update_list_messages(list_id, context)
 
 async def observe_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -591,7 +591,7 @@ async def observe_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_lists[list_id]['observers'].append(user_info)
     DataManager.save_data(LISTS_FILE, active_lists)
     await query.answer("✅ به ناظرین اضافه شدید!", show_alert=True)
-    await update_list_messages(list_id)
+    await update_list_messages(list_id, context)
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -767,11 +767,12 @@ def main():
     app.add_error_handler(error_handler)
     
     # تنظیم وب‌هوک
+    PORT = int(os.environ.get('PORT', 10000))
     app.run_webhook(
-    listen="0.0.0.0",
-    port=int(os.environ.get("PORT", 10000)),  # Render uses $PORT
-    webhook_url=WEBHOOK_URL
-)
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL
+    )
 
 if __name__ == '__main__':
     main()
