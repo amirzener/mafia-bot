@@ -4,13 +4,10 @@ from access_control import AccessControl
 class KeyboardManager:
     @staticmethod
     def get_main_menu(user_id):
-        """منوی اصلی بر اساس سطح دسترسی کاربر"""
         buttons = []
-
         if AccessControl.is_owner(user_id):
             buttons.append([InlineKeyboardButton("📢 مدیریت کانال‌ها", callback_data="manage_channels")])
             buttons.append([InlineKeyboardButton("🛠 مدیریت مدیران", callback_data="manage_admins")])
-
         elif AccessControl.is_super_admin(user_id):
             buttons.append([InlineKeyboardButton("🛠 مدیریت مدیران", callback_data="manage_admins")])
 
@@ -20,9 +17,7 @@ class KeyboardManager:
 
     @staticmethod
     def get_admins_keyboard(user_id):
-        """منوی مدیریت مدیران"""
         buttons = []
-
         if AccessControl.is_owner(user_id):
             buttons.append([InlineKeyboardButton("➕ افزودن سوپرادمین", callback_data="add_super_admin")])
 
@@ -33,8 +28,16 @@ class KeyboardManager:
         return InlineKeyboardMarkup(buttons)
 
     @staticmethod
+    def get_channels_keyboard(user_id):
+        buttons = [
+            [InlineKeyboardButton("➕ افزودن کانال", callback_data="add_channel")],
+            [InlineKeyboardButton("📋 لیست کانال‌ها", callback_data="list_channels")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]
+        ]
+        return InlineKeyboardMarkup(buttons)
+
+    @staticmethod
     def get_back_keyboard(target):
-        """کلید بازگشت با callback_data استاندارد"""
         return InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_{target}")]]
-        )
+            )
