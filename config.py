@@ -4,7 +4,7 @@ import os
 OWNER_ID = int(os.environ.get('OWNER_ID'))
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
-
+PORT = int(os.environ.get('PORT')) 
 # فایل‌های دیتابیس
 ADMINS_FILE = "data/admins.json"
 CHANNELS_FILE = "data/channels.json"
