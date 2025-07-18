@@ -1,5 +1,11 @@
 from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram.ext import (
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler
+)
 from config import GET_ADMIN_INFO, GET_SUPER_ADMIN_INFO, TEXTS
 from data_manager import DataManager
 from keyboard_manager import KeyboardManager
@@ -42,3 +48,14 @@ async def save_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=KeyboardManager.get_back_keyboard("admin_management")
     )
     return ConversationHandler.END
+
+def setup_admin_handlers(app):
+    """تنظیم هندلرهای مدیریت ادمین"""
+    admin_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(add_admin, pattern="^add_admin$")],
+        states={
+            GET_ADMIN_INFO: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_admin)]
+        },
+        fallbacks=[CallbackQueryHandler(back_handler, pattern="^back_to_")]
+    )
+    app.add_handler(admin_conv)
