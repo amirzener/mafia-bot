@@ -1,9 +1,9 @@
 import os
 
 # تنظیمات اصلی
-OWNER_ID = int(os.environ.get('OWNER_ID', 123456789))
-BOT_TOKEN = os.environ.get('BOT_TOKEN', 'your_bot_token')
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL', 'https://yourdomain.com/webhook')
+OWNER_ID = int(os.environ.get('OWNER_ID'))
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 
 # فایل‌های دیتابیس
 ADMINS_FILE = "data/admins.json"
