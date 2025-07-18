@@ -1,25 +1,12 @@
-from data_manager import DataManager
-from config import ADMINS_FILE, ROLE_OWNER, ROLE_SUPER_ADMIN, ROLE_ADMIN, OWNER_ID
+from config import OWNER_ID, get_admins, ROLE_OWNER, ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_USER
 
-class AccessControl:
-    @staticmethod
-    def is_owner(user_id):
-        """بررسی اینکه کاربر مالک ربات است"""
-        return str(user_id) == str(OWNER_ID)
+def get_user_role(user_id: str) -> str: if user_id == OWNER_ID: return ROLE_OWNER
 
-    @staticmethod  
-    def is_super_admin(user_id):  
-        """بررسی سوپر ادمین بودن"""
-        admins = DataManager.load_data(ADMINS_FILE)  
-        return str(user_id) in admins and admins[str(user_id)]["role"] == ROLE_SUPER_ADMIN  
+admins = get_admins()
 
-    @staticmethod  
-    def is_admin(user_id):  
-        """بررسی ادمین بودن"""
-        admins = DataManager.load_data(ADMINS_FILE)  
-        return str(user_id) in admins and admins[str(user_id)]["role"] in [ROLE_ADMIN, ROLE_SUPER_ADMIN]  
-
-    @staticmethod  
-    def is_privileged(user_id):  
-        """بررسی دسترسی ویژه"""
-        return AccessControl.is_owner(user_id) or AccessControl.is_admin(user_id)
+if user_id in admins.get("super_admins", []):
+    return ROLE_SUPER_ADMIN
+elif user_id in admins.get("admins", []):
+    return ROLE_ADMIN
+else:
+    return ROLE_USER
