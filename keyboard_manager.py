@@ -1,43 +1,22 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from access_control import AccessControl
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton from config import ROLE_OWNER, ROLE_SUPER_ADMIN, ROLE_ADMIN
 
-class KeyboardManager:
-    @staticmethod
-    def get_main_menu(user_id):
-        buttons = []
-        if AccessControl.is_owner(user_id):
-            buttons.append([InlineKeyboardButton("📢 مدیریت کانال‌ها", callback_data="manage_channels")])
-            buttons.append([InlineKeyboardButton("🛠 مدیریت مدیران", callback_data="manage_admins")])
-        elif AccessControl.is_super_admin(user_id):
-            buttons.append([InlineKeyboardButton("🛠 مدیریت مدیران", callback_data="manage_admins")])
+def get_main_menu(role: str, user_id: str) -> InlineKeyboardMarkup: keyboard = InlineKeyboardMarkup()
 
-        buttons.append([InlineKeyboardButton("📋 ایجاد لیست جدید", callback_data="create_list")])
+if role == ROLE_OWNER:
+    keyboard.add(InlineKeyboardButton(text="➕ افزودن ادمین ویژه", callback_data=f"add_super_admin:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="➕ افزودن ادمین معمولی", callback_data=f"add_admin:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="📢 لیست کانال‌ها", callback_data=f"list_channels:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="👥 لیست گروه‌ها", callback_data=f"list_groups:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="👤 لیست مدیران", callback_data=f"list_admins:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="📝 ساخت لیست", callback_data=f"create_list:{user_id}"))
 
-        return InlineKeyboardMarkup(buttons)
+elif role == ROLE_SUPER_ADMIN:
+    keyboard.add(InlineKeyboardButton(text="➕ افزودن ادمین معمولی", callback_data=f"add_admin:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="👤 لیست مدیران", callback_data=f"list_admins:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="📝 ساخت لیست", callback_data=f"create_list:{user_id}"))
 
-    @staticmethod
-    def get_admins_keyboard(user_id):
-        buttons = []
-        if AccessControl.is_owner(user_id):
-            buttons.append([InlineKeyboardButton("➕ افزودن سوپرادمین", callback_data="add_super_admin")])
+elif role == ROLE_ADMIN:
+    keyboard.add(InlineKeyboardButton(text="👤 لیست مدیران", callback_data=f"list_admins:{user_id}"))
+    keyboard.add(InlineKeyboardButton(text="📝 ساخت لیست", callback_data=f"create_list:{user_id}"))
 
-        buttons.append([InlineKeyboardButton("➕ افزودن ادمین", callback_data="add_admin")])
-        buttons.append([InlineKeyboardButton("📋 لیست مدیران", callback_data="list_admins")])
-        buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
-
-        return InlineKeyboardMarkup(buttons)
-
-    @staticmethod
-    def get_channels_keyboard(user_id):
-        buttons = [
-            [InlineKeyboardButton("➕ افزودن کانال", callback_data="add_channel")],
-            [InlineKeyboardButton("📋 لیست کانال‌ها", callback_data="list_channels")],
-            [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]
-        ]
-        return InlineKeyboardMarkup(buttons)
-
-    @staticmethod
-    def get_back_keyboard(target):
-        return InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_{target}")]]
-            )
+return keyboard
