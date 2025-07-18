@@ -1,68 +1,37 @@
-import os
-import logging
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    filters,
-    ConversationHandler
-)
-from config import BOT_TOKEN, PORT, WEBHOOK_URL
-from data_manager import DataManager
-from admin_manager import setup_admin_handlers
-from list_manager import setup_list_handlers
-from keyboard_manager import KeyboardManager
-from access_control import AccessControl
-from config import TEXTS
+import asyncio import logging import os from aiogram import Bot, Dispatcher, F, types from aiogram.enums import ParseMode from aiogram.types import Message from aiogram.filters import CommandStart from aiogram.fsm.storage.memory import MemoryStorage from dotenv import load_dotenv
 
-# Setup logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+from config import OWNER_ID from access_control import get_user_role from keyboard_manager import get_main_menu
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    if AccessControl.is_privileged(user_id):
-        keyboard = KeyboardManager.get_main_menu(user_id)
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=TEXTS["start"],
-            reply_markup=keyboard
-        )
-    else:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="🤖 به ربات خوش آمدید! متأسفانه دسترسی خاصی ندارید."
-        )
+load_dotenv()
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.error(f"Update {update} caused error {context.error}")
+TOKEN = os.getenv("BOT_TOKEN") WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-def main():
-    DataManager.initialize_files()
+Logging
 
-    app = Application.builder().token(BOT_TOKEN).build()
+logging.basicConfig(level=logging.INFO) logger = logging.getLogger(name)
 
-    # Register handlers
-    app.add_handler(CommandHandler("start", start))
-    setup_admin_handlers(app)
-    setup_list_handlers(app)
+bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML) dp = Dispatcher(storage=MemoryStorage())
 
-    # Error handling
-    app.add_error_handler(error_handler)
+/start handler
 
-    # Webhook setup
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL
-    )
+@dp.message(CommandStart()) async def start_handler(message: Message): user_id = str(message.from_user.id) role = get_user_role(user_id)
 
-if __name__ == '__main__':
-    main()
+if role == "owner":
+    text = "<b>🛡️ به پنل مالک خوش آمدید</b>\nاز منوی زیر استفاده کنید."
+elif role == "super_admin":
+    text = "<b>👑 به پنل ادمین ویژه خوش آمدید</b>\nاز منوی زیر استفاده کنید."
+elif role == "admin":
+    text = "<b>🧩 به پنل ادمین معمولی خوش آمدید</b>\nاز منوی زیر استفاده کنید."
+else:
+    text = "<b>🎉 خوش آمدید</b>\nبرای شما منویی وجود ندارد."
+
+keyboard = get_main_menu(role, user_id)
+
+await message.answer(text, reply_markup=keyboard)
+
+async def on_startup(bot: Bot): if WEBHOOK_URL: await bot.set_webhook(WEBHOOK_URL) logger.info(f"Webhook set to {WEBHOOK_URL}") else: logger.info("Polling mode active")
+
+async def main(): try: await on_startup(bot) await dp.start_polling(bot) except Exception as e: logger.error(f"Error: {e}")
+
+if name == "main": asyncio.run(main())
+
