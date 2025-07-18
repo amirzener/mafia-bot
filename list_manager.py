@@ -1,5 +1,5 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
@@ -12,13 +12,17 @@ from data_manager import DataManager
 from keyboard_manager import KeyboardManager
 from access_control import AccessControl
 
+# مرحله شروع ایجاد لیست - پرسش زمان
 async def create_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    active_lists = DataManager.load_data(LISTS_FILE)
+    active_lists = DataManager.load_data(LISTS_FILE) or {}
+    user_id = update.effective_user.id
+
+    # بررسی اینکه کاربر قبلا لیست فعال داشته باشد
     for list_id, list_data in active_lists.items():
-        if str(list_data["creator_id"]) == str(update.effective_user.id):
+        if str(list_data.get("creator_id")) == str(user_id):
             await query.answer("شما در حال حاضر یک لیست فعال دارید!", show_alert=True)
             return ConversationHandler.END
 
@@ -28,6 +32,8 @@ async def create_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return GET_TIME
 
+
+# مرحله دریافت زمان و اعتبارسنجی آن
 async def process_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_input = update.message.text.strip()
 
@@ -48,7 +54,7 @@ async def process_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return GET_TIME
 
-    active_lists = DataManager.load_data(LISTS_FILE)
+    active_lists = DataManager.load_data(LISTS_FILE) or {}
     list_id = str(len(active_lists) + 1)
 
     active_lists[list_id] = {
@@ -68,8 +74,10 @@ async def process_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+
+# تولید متن لیست برای ارسال در پیام‌ها
 def generate_list_text(list_id):
-    active_lists = DataManager.load_data(LISTS_FILE)
+    active_lists = DataManager.load_data(LISTS_FILE) or {}
     if list_id not in active_lists:
         return "❌ لیست یافت نشد!"
 
@@ -101,15 +109,17 @@ def generate_list_text(list_id):
     )
     return text
 
+
+# بروزرسانی پیام لیست‌ها در کانال‌ها
 async def update_list_messages(list_id, context: ContextTypes.DEFAULT_TYPE):
-    active_lists = DataManager.load_data(LISTS_FILE)
+    active_lists = DataManager.load_data(LISTS_FILE) or {}
     if list_id not in active_lists:
         return
 
     list_text = generate_list_text(list_id)
     is_privileged = AccessControl.is_privileged(int(active_lists[list_id]['creator_id']))
 
-    channels = DataManager.load_data(CHANNELS_FILE)
+    channels = DataManager.load_data(CHANNELS_FILE) or {}
     for channel_id in channels:
         try:
             await context.bot.edit_message_text(
@@ -122,6 +132,8 @@ async def update_list_messages(list_id, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"خطا در به‌روزرسانی لیست در کانال {channel_id}: {e}")
 
+
+# هندلر بازگشت به منوی اصلی
 async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -131,6 +143,8 @@ async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+
+# ثبت هندلرهای مربوط به لیست‌ها
 def setup_list_handlers(app):
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(create_list, pattern="^create_list$")],
@@ -141,8 +155,3 @@ def setup_list_handlers(app):
     )
 
     app.add_handler(conv_handler)
-
-    # در صورت داشتن این هندلرها، اضافه کنید:
-    # app.add_handler(CallbackQueryHandler(join_list, pattern="^join_"))
-    # app.add_handler(CallbackQueryHandler(observe_list, pattern="^observe_"))
-    # app.add_handler(CallbackQueryHandler(start_game, pattern="^start_"))
