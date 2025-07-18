@@ -94,7 +94,7 @@ def generate_list_text(list_id):
         ("\n".join(
             f"{i+1}. 👁 [{obs.split('|')[0]}](tg://user?id={obs.split('|')[1]})"
             for i, obs in enumerate(list_data['observers']))
-        ) if list_data['observers'] else "هنوز ناظری وجود ندارد")
+        ) if list_data['observers'] else ("هنوز ناظری وجود ندارد")
     
     return text
 
