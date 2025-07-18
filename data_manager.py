@@ -1,6 +1,7 @@
 import json
 import os
 from config import OWNER_ID
+from config import OWNER_ID, ROLE_OWNER
 from config import ADMINS_FILE, CHANNELS_FILE, LISTS_FILE, USERS_FILE
 
 class DataManager:
