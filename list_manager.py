@@ -81,23 +81,32 @@ def generate_list_text(list_id):
     list_data = active_lists[list_id]
     rainbow_colors = ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪"]
     
+    def generate_list_text(list_data, rainbow_colors):
+    players_text = (
+        "\n".join(
+            f"{rainbow_colors[i % len(rainbow_colors)]} {i+1}. [{player.split('|')[0]}](tg://user?id={player.split('|')[1]})"
+            for i, player in enumerate(list_data['players'])
+        )
+        if list_data['players'] else "هنوز بازیکنی وجود ندارد"
+    )
+
+    observers_text = (
+        "\n".join(
+            f"{i+1}. 👁 [{obs.split('|')[0]}](tg://user?id={obs.split('|')[1]})"
+            for i, obs in enumerate(list_data['observers'])
+        )
+        if list_data['observers'] else "هنوز ناظری وجود ندارد"
+    )
+
     text = (
         f"🌟 *لیست بازی مافیا* 🌟\n\n"
         f"⏰ زمان شروع: {list_data['time']}\n"
         f"👤 سازنده: {list_data['creator_name']}\n\n"
-        f"🎮 *بازیکنان:*\n" +
-        ("\n".join(
-            f"{rainbow_colors[i % len(rainbow_colors)]} {i+1}. [{player.split('|')[0]}](tg://user?id={player.split('|')[1]})"
-            for i, player in enumerate(list_data['players']))
-        ) if list_data['players'] else "هنوز بازیکنی وجود ندارد") +
-        f"\n\n👁 *ناظران:*\n" +
-        ("\n".join(
-            f"{i+1}. 👁 [{obs.split('|')[0]}](tg://user?id={obs.split('|')[1]})"
-            for i, obs in enumerate(list_data['observers']))
-         if list_data['observers'] else "هنوز ناظری وجود ندارد"
-   ) 
+        f"🎮 *بازیکنان:*\n{players_text}\n\n"
+        f"👁 *ناظران:*\n{observers_text}"
+    )
     return text
-
+    
 async def update_list_messages(list_id, context: ContextTypes.DEFAULT_TYPE):
     """به‌روزرسانی پیام‌های لیست در کانال‌ها"""
     active_lists = DataManager.load_data(LISTS_FILE)
