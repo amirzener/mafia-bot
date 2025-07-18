@@ -24,9 +24,9 @@ async def create_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
 
     await query.edit_message_text(
-        "⏰ لطفاً زمان شروع بازی را به صورت ۲۴ ساعته وارد کنید (مثال: ۱۹۳۰):") 
-        reply_markup=KeyboardManager.get_back_keyboard("main")
- 
+    "⏰ لطفاً زمان شروع بازی را به صورت ۲۴ ساعته وارد کنید (مثال: ۱۹۳۰):",
+    reply_markup=KeyboardManager.get_back_keyboard("main")
+)
     return GET_TIME
 
 async def process_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
