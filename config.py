@@ -6,16 +6,16 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 PORT = int(os.environ.get('PORT')) 
 # فایل‌های دیتابیس
-ADMINS_FILE = "admins.json"
-CHANNELS_FILE = "channels.json"
-LISTS_FILE = "active_lists.json"
-USERS_FILE = "users.json"
+ADMINS_FILE = "list_manager/admins.json"
+CHANNELS_FILE = "list_manager/channels.json"
+LISTS_FILE = "list_manager/lists.json"
+USERS_FILE = "list_manager/users.json"
 
-# سطوح دسترسی
-ROLE_OWNER = "مالک"
-ROLE_SUPER_ADMIN = "سوپرادمین"
-ROLE_ADMIN = "ادمین"
-
+# مجوزها
+ROLE_OWNER = "owner"
+ROLE_SUPER_ADMIN = "super_admin"
+ROLE_ADMIN = "admin"
+ROLE_USER = "user"
 # حالت‌های گفتگو
 GET_TIME, GET_ADMIN_INFO, GET_SUPER_ADMIN_INFO = range(3)
 
