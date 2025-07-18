@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: ContextTypes.DEFAULT_TYPE):
     """دستور شروع ربات"""
     await update.message.reply_text(
         "🤖 به ربات مدیریت لیست بازی مافیا خوش آمدید!",
