@@ -1,5 +1,14 @@
 import logging
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler
+)
 from config import BOT_TOKEN, OWNER_ID
 from data_manager import DataManager
 from admin_manager import add_admin, save_admin
@@ -13,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def start(update: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """دستور شروع ربات"""
     await update.message.reply_text(
         "🤖 به ربات مدیریت لیست بازی مافیا خوش آمدید!",
