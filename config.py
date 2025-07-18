@@ -6,10 +6,10 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 PORT = int(os.environ.get('PORT')) 
 # فایل‌های دیتابیس
-ADMINS_FILE = "data/admins.json"
-CHANNELS_FILE = "data/channels.json"
-LISTS_FILE = "data/active_lists.json"
-USERS_FILE = "data/users.json"
+ADMINS_FILE = "admins.json"
+CHANNELS_FILE = "channels.json"
+LISTS_FILE = "active_lists.json"
+USERS_FILE = "users.json"
 
 # سطوح دسترسی
 ROLE_OWNER = "مالک"
