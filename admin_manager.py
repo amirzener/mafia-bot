@@ -11,6 +11,15 @@ from data_manager import DataManager
 from keyboard_manager import KeyboardManager
 from access_control import AccessControl
 
+async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "به منوی اصلی بازگشتید.",
+        reply_markup=KeyboardManager.get_main_menu(query.from_user.id)
+    )
+    return ConversationHandler.END
+
 async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
