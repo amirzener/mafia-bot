@@ -1,5 +1,5 @@
 import logging
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
@@ -48,8 +48,8 @@ async def process_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return GET_TIME
 
-    list_id = str(len(DataManager.load_data(LISTS_FILE)) + 1)
     active_lists = DataManager.load_data(LISTS_FILE)
+    list_id = str(len(active_lists) + 1)
 
     active_lists[list_id] = {
         "creator_id": update.effective_user.id,
@@ -122,6 +122,15 @@ async def update_list_messages(list_id, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"خطا در به‌روزرسانی لیست در کانال {channel_id}: {e}")
 
+async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "به منوی اصلی بازگشتید.",
+        reply_markup=KeyboardManager.get_main_menu(query.from_user.id)
+    )
+    return ConversationHandler.END
+
 def setup_list_handlers(app):
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(create_list, pattern="^create_list$")],
@@ -133,8 +142,7 @@ def setup_list_handlers(app):
 
     app.add_handler(conv_handler)
 
-    # اگر join_list، observe_list، start_game را دارید اضافه کنید،
-    # در غیر اینصورت این‌ها را حذف کنید یا تعریفشان کنید.
+    # در صورت داشتن این هندلرها، اضافه کنید:
     # app.add_handler(CallbackQueryHandler(join_list, pattern="^join_"))
     # app.add_handler(CallbackQueryHandler(observe_list, pattern="^observe_"))
     # app.add_handler(CallbackQueryHandler(start_game, pattern="^start_"))
