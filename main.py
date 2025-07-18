@@ -1,6 +1,7 @@
 import os
 import logging
 from telegram import Update  # این import حیاتی بود که اضافه شد
+from telegram.ext import ContextTypes
 from telegram.ext import (
     Application,
     CommandHandler,
