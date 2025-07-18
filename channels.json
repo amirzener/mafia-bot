@@ -1,1 +1,12 @@
-{-1002061776478}
+{
+    "-100123456789": {
+        "title": "کانال تست مافیا",
+        "type": "channel",
+        "invite_link": "https://t.me/joinchat/ABC123"
+    },
+    "-100987654321": {
+        "title": "گروه بازی مافیا",
+        "type": "channel",
+        "invite_link": ""
+    }
+}
