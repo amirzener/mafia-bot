@@ -1,41 +1,25 @@
-import json
-import os
-from config import OWNER_ID
-from config import OWNER_ID, ROLE_OWNER
-from config import ADMINS_FILE, CHANNELS_FILE, LISTS_FILE, USERS_FILE
+import json import os from typing import Any from config import ADMINS_FILE, CHANNELS_FILE, LISTS_FILE, USERS_FILE
 
-class DataManager:
-    @staticmethod
-    def load_data(filename, default=None):
-        """بارگذاری داده از فایل JSON"""
-        try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return default or {}
+def load_json(file_path: str) -> Any: if not os.path.exists(file_path): with open(file_path, "w", encoding="utf-8") as f: json.dump({}, f, ensure_ascii=False, indent=2)
 
-    @staticmethod  
-    def save_data(filename, data):  
-        """ذخیره داده در فایل JSON"""
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        with open(filename, 'w', encoding='utf-8') as f:  
-            json.dump(data, f, ensure_ascii=False, indent=4)
+with open(file_path, "r", encoding="utf-8") as f:
+    return json.load(f)
 
-    @staticmethod  
-    def initialize_files():  
-        """ایجاد فایل‌های اولیه"""
-        initial_data = {
-            ADMINS_FILE: {
-                str(OWNER_ID): {
-                    "name": "مالک ربات",
-                    "role": ROLE_OWNER
-                }
-            },
-            CHANNELS_FILE: {},
-            LISTS_FILE: {},
-            USERS_FILE: {}
-        }
-        
-        for filename, data in initial_data.items():
-            if not os.path.exists(filename):
-                DataManager.save_data(filename, data)
+def save_json(file_path: str, data: Any): with open(file_path, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+
+def get_admins(): return load_json(ADMINS_FILE)
+
+def save_admins(data): save_json(ADMINS_FILE, data)
+
+def get_channels(): return load_json(CHANNELS_FILE)
+
+def save_channels(data): save_json(CHANNELS_FILE, data)
+
+def get_lists(): return load_json(LISTS_FILE)
+
+def save_lists(data): save_json(LISTS_FILE, data)
+
+def get_users(): return load_json(USERS_FILE)
+
+def save_users(data): save_json(USERS_FILE, data)
+
