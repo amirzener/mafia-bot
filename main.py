@@ -1,46 +1,55 @@
-import os
 import logging
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
-from config import BOT_TOKEN, PORT, WEBHOOK_URL
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from config import BOT_TOKEN, OWNER_ID
 from data_manager import DataManager
-from admin_manager import setup_admin_handlers
-from list_manager import setup_list_handlers
+from admin_manager import add_admin, save_admin
+from list_manager import create_list, generate_list_text
+from keyboard_manager import KeyboardManager
 
-# Setup logging
+# تنظیمات لاگ
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-async def start(update, context):
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="🤖 Welcome to Mafia Game List Management Bot!"
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """دستور شروع ربات"""
+    await update.message.reply_text(
+        "🤖 به ربات مدیریت لیست بازی مافیا خوش آمدید!",
+        reply_markup=KeyboardManager.get_main_menu(update.effective_user.id)
     )
 
-async def error_handler(update, context):
-    logger.error(f"Update {update} caused error {context.error}")
-
 def main():
+    """تابع اصلی اجرای ربات"""
     DataManager.initialize_files()
     
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # Register handlers
+    # ثبت هندلرها
     app.add_handler(CommandHandler("start", start))
-    setup_admin_handlers(app)
-    setup_list_handlers(app)
     
-    # Error handling
-    app.add_error_handler(error_handler)
-    
-    # Webhook setup
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL
+    # هندلرهای مدیریت ادمین
+    admin_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(add_admin, pattern="^add_admin$")],
+        states={
+            GET_ADMIN_INFO: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_admin)]
+        },
+        fallbacks=[]
     )
+    app.add_handler(admin_conv)
+    
+    # هندلرهای لیست بازی
+    list_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(create_list, pattern="^create_list$")],
+        states={
+            GET_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_time)]
+        },
+        fallbacks=[]
+    )
+    app.add_handler(list_conv)
+    
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
