@@ -136,10 +136,13 @@ async def webhook():
     await application.process_update(update)
     return Response("OK", status=200)
 
+@app.before_first_request
+def init_webhook():
+    asyncio.run(set_webhook())
+
 async def set_webhook():
     await application.bot.set_webhook(WEBHOOK_URL)
 
 if __name__ == '__main__':
-    asyncio.run(set_webhook())
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
