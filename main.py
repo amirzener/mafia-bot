@@ -3,6 +3,7 @@ import json
 from flask import Flask, request, Response
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+import asyncio
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
@@ -130,16 +131,14 @@ application.add_handler(CallbackQueryHandler(button_handler))
 application.add_handler(MessageHandler(filters.StatusUpdate.MY_CHAT_MEMBER, my_chat_member))
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
+async def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
+    await application.process_update(update)
     return Response("OK", status=200)
 
-@app.before_first_request
-def setup_webhook():
-    import asyncio
-    loop = asyncio.get_event_loop()
-    loop.create_task(application.bot.set_webhook(WEBHOOK_URL))
+async def set_webhook():
+    await application.bot.set_webhook(WEBHOOK_URL)
 
 if __name__ == '__main__':
+    asyncio.run(set_webhook())
     app.run(host='0.0.0.0', port=8080)
