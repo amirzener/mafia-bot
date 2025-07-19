@@ -1,5 +1,5 @@
-python-telegram-bot==13.7
-flask==2.0.3
-werkzeug==2.0.3
-python-dotenv==1.0.0
-gunicorn==20.1.0
+python-telegram-bot==20.7
+Flask==2.2.5
+Werkzeug==2.2.5
+python-dotenv==1.0.1
+gunicorn==21.2.0
