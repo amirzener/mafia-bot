@@ -1,13 +1,15 @@
 import os
 import json
-from aiohttp import web
+from flask import Flask, request, Response
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 DATA_FILE = "data.json"
+
+app = Flask(__name__)
 
 def load_data():
     try:
@@ -21,7 +23,8 @@ def load_data():
                 "normal_admins": []
             },
             "chats": {},
-            "panel": {}  # To store open panel info like {"user_id": message_id}
+            "panel": {},
+            "pending": {}  # برای نگهداری حالت افزودن مدیر
         }
 
 def save_data(data):
@@ -46,6 +49,8 @@ def main_menu_keyboard(user_id, data):
         ]
     return InlineKeyboardMarkup(kb)
 
+application = ApplicationBuilder().token(API_TOKEN).build()
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ ربات فعال است.")
 
@@ -53,15 +58,35 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = load_data()
     text = update.message.text
+
+    if str(user_id) in data.get("pending", {}):
+        action = data["pending"].pop(str(user_id))
+        target_id = text.strip()
+        if not target_id.isdigit():
+            await update.message.reply_text("❌ شناسه کاربر نامعتبر است. لغو شد.")
+        else:
+            target_id = int(target_id)
+            if action == "add_super_admin":
+                if target_id not in data["admins"]["super_admins"]:
+                    data["admins"]["super_admins"].append(target_id)
+                    await update.message.reply_text("✅ مدیر ارشد اضافه شد.")
+                else:
+                    await update.message.reply_text("ℹ️ این کاربر قبلا مدیر ارشد است.")
+            elif action == "add_normal_admin":
+                if target_id not in data["admins"]["normal_admins"]:
+                    data["admins"]["normal_admins"].append(target_id)
+                    await update.message.reply_text("✅ مدیر معمولی اضافه شد.")
+                else:
+                    await update.message.reply_text("ℹ️ این کاربر قبلا مدیر معمولی است.")
+        save_data(data)
+        return
+
     if text == "منو":
         if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
             sent = await update.message.reply_text("📋 پنل شما", reply_markup=main_menu_keyboard(user_id, data))
-            # ذخیره پیام پنل برای کنترل دسترسی دکمه‌ها
             data["panel"] = {"user_id": user_id, "message_id": sent.message_id}
             save_data(data)
-
     elif update.message.reply_to_message and text == "ست":
-        # فقط مدیرارشد ها می تونن مدیر معمولی اضافه کنن
         if user_id in data["admins"]["super_admins"]:
             target_id = update.message.reply_to_message.from_user.id
             if target_id not in data["admins"]["normal_admins"]:
@@ -69,16 +94,15 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 save_data(data)
                 await update.message.reply_text("✅ این کاربر به مدیر معمولی ارتقا یافت.")
             else:
-                await update.message.reply_text("ℹ️ این کاربر قبلاً مدیر معمولی است.")
+                await update.message.reply_text("ℹ️ این کاربر قبلا مدیر معمولی است.")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
     data = load_data()
-
-    # چک کردن مالک پنل
     panel = data.get("panel", {})
+
     if not panel or user_id != panel.get("user_id") or query.message.message_id != panel.get("message_id"):
         await query.answer("⛔️ شما مجاز به استفاده از این پنل نیستید.", show_alert=True)
         return
@@ -106,16 +130,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(text, reply_markup=main_menu_keyboard(user_id, data))
 
     elif query.data == "add_super_admin":
-        # TODO: اضافه کردن مرحله برای وارد کردن آی دی مدیر ارشد
-        await query.message.edit_text("❗️ این قسمت هنوز پیاده نشده است.", reply_markup=main_menu_keyboard(user_id, data))
+        if user_id == OWNER_ID:
+            data["pending"][str(user_id)] = "add_super_admin"
+            save_data(data)
+            await query.message.edit_text("👤 لطفا شناسه عددی کاربری که می‌خواهید مدیر ارشد شود را ارسال کنید.", reply_markup=main_menu_keyboard(user_id, data))
+        else:
+            await query.answer("⛔️ فقط مالک می‌تواند مدیر ارشد اضافه کند.", show_alert=True)
 
     elif query.data == "add_normal_admin":
-        # TODO: اضافه کردن مرحله برای وارد کردن آی دی مدیر معمولی
-        await query.message.edit_text("❗️ این قسمت هنوز پیاده نشده است.", reply_markup=main_menu_keyboard(user_id, data))
-
+        if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
+            data["pending"][str(user_id)] = "add_normal_admin"
+            save_data(data)
+            await query.message.edit_text("👤 لطفا شناسه عددی کاربری که می‌خواهید مدیر معمولی شود را ارسال کنید.", reply_markup=main_menu_keyboard(user_id, data))
+        else:
+            await query.answer("⛔️ فقط مدیران ارشد می‌توانند مدیر معمولی اضافه کنند.", show_alert=True)
 
 async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # وقتی ربات عضو گروه یا کانال میشه، اطلاعات ذخیره بشه
     chat = update.my_chat_member.chat
     new_status = update.my_chat_member.new_chat_member.status
     if new_status in ("member", "administrator"):
@@ -127,34 +157,22 @@ async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         save_data(data)
 
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), menu))
+application.add_handler(CallbackQueryHandler(button_handler))
+application.add_handler(MessageHandler(filters.StatusUpdate.MY_CHAT_MEMBER, my_chat_member))
 
-async def handle_webhook(request):
-    # هندلر aiohttp برای وبهوک
-    body = await request.json()
-    update = Update.de_json(body)
-    await application.update_queue.put(update)
-    return web.Response(text="OK")
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put_nowait(update)
+    return Response("OK", status=200)
 
+@app.before_first_request
+def setup_webhook():
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.create_task(application.bot.set_webhook(WEBHOOK_URL))
 
-if __name__ == "__main__":
-    application = ApplicationBuilder().token(API_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), menu))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(MessageHandler(filters.StatusUpdate.MY_CHAT_MEMBER, my_chat_member))
-
-    # وبهوک aiohttp
-    app = web.Application()
-    app.router.add_post("/webhook", handle_webhook)
-
-    async def on_startup(app):
-        await application.bot.set_webhook(WEBHOOK_URL)
-
-    async def on_shutdown(app):
-        await application.bot.delete_webhook()
-
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-
-    web.run_app(app, port=8080)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
