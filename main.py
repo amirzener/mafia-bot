@@ -3,7 +3,15 @@ import json
 import asyncio
 from flask import Flask, request, Response
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    MyChatMemberHandler,
+    ContextTypes,
+    filters
+)
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
@@ -32,7 +40,6 @@ def save_data(data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def main_menu_keyboard(user_id, data):
-    kb = []
     if user_id == OWNER_ID:
         kb = [
             [InlineKeyboardButton("➕ افزودن مدیر ارشد", callback_data="add_super_admin")],
@@ -47,6 +54,8 @@ def main_menu_keyboard(user_id, data):
             [InlineKeyboardButton("📋 لیست مقام داران", callback_data="list_admins")],
             [InlineKeyboardButton("❌ بستن", callback_data="close")]
         ]
+    else:
+        kb = []
     return InlineKeyboardMarkup(kb)
 
 application = Application.builder().token(API_TOKEN).build()
@@ -58,6 +67,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = load_data()
     text = update.message.text
+
     if text == "منو":
         if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
             sent = await update.message.reply_text("📋 پنل شما", reply_markup=main_menu_keyboard(user_id, data))
@@ -133,7 +143,7 @@ async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), menu))
 application.add_handler(CallbackQueryHandler(button_handler))
-application.add_handler(MessageHandler(filters.StatusUpdate.MY_CHAT_MEMBER, my_chat_member))
+application.add_handler(MyChatMemberHandler(my_chat_member))
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
