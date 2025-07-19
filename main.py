@@ -2,7 +2,7 @@ import os
 import json
 from flask import Flask, request, Response
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import asyncio
 
 API_TOKEN = os.getenv("BOT_TOKEN")
@@ -19,10 +19,7 @@ def load_data():
     except:
         return {
             "owner_id": OWNER_ID,
-            "admins": {
-                "super_admins": [],
-                "normal_admins": []
-            },
+            "admins": {"super_admins": [], "normal_admins": []},
             "chats": {},
             "panel": {}
         }
@@ -49,7 +46,7 @@ def main_menu_keyboard(user_id, data):
         ]
     return InlineKeyboardMarkup(kb)
 
-application = ApplicationBuilder().token(API_TOKEN).build()
+application = Application.builder().token(API_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ ربات فعال است.\nبرای باز کردن پنل، عبارت «منو» را ارسال کنید.")
@@ -58,6 +55,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = load_data()
     text = update.message.text
+
     if text == "منو":
         if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
             sent = await update.message.reply_text("📋 پنل شما", reply_markup=main_menu_keyboard(user_id, data))
@@ -65,14 +63,25 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_data(data)
 
     elif update.message.reply_to_message and text.isdigit():
+        target_id = int(text)
+        last_action = data.get("last_action")
         if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
-            target_id = int(text)
-            if target_id not in data["admins"]["normal_admins"]:
-                data["admins"]["normal_admins"].append(target_id)
-                save_data(data)
-                await update.message.reply_text(f"✅ کاربر {target_id} به مدیر معمولی اضافه شد.")
-            else:
-                await update.message.reply_text("ℹ️ این کاربر قبلاً مدیر معمولی است.")
+            if last_action == "add_super_admin":
+                if target_id not in data["admins"]["super_admins"]:
+                    data["admins"]["super_admins"].append(target_id)
+                    save_data(data)
+                    await update.message.reply_text(f"✅ کاربر {target_id} به مدیر ارشد اضافه شد.")
+                else:
+                    await update.message.reply_text("ℹ️ این کاربر قبلاً مدیر ارشد است.")
+            elif last_action == "add_normal_admin":
+                if target_id not in data["admins"]["normal_admins"]:
+                    data["admins"]["normal_admins"].append(target_id)
+                    save_data(data)
+                    await update.message.reply_text(f"✅ کاربر {target_id} به مدیر معمولی اضافه شد.")
+                else:
+                    await update.message.reply_text("ℹ️ این کاربر قبلاً مدیر معمولی است.")
+            data["last_action"] = None
+            save_data(data)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -107,10 +116,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{info['title']} | {info['type']} | {cid}\n"
         await query.message.edit_text(text, reply_markup=main_menu_keyboard(user_id, data))
 
-    elif query.data == "add_super_admin":
-        await query.message.edit_text("👤 آیدی عددی کاربر مورد نظر را ریپلای کنید و عدد آیدی او را ارسال نمایید.", reply_markup=main_menu_keyboard(user_id, data))
-
-    elif query.data == "add_normal_admin":
+    elif query.data in ["add_super_admin", "add_normal_admin"]:
+        data["last_action"] = query.data
+        save_data(data)
         await query.message.edit_text("👤 آیدی عددی کاربر مورد نظر را ریپلای کنید و عدد آیدی او را ارسال نمایید.", reply_markup=main_menu_keyboard(user_id, data))
 
 async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -131,18 +139,15 @@ application.add_handler(CallbackQueryHandler(button_handler))
 application.add_handler(MessageHandler(filters.StatusUpdate.MY_CHAT_MEMBER, my_chat_member))
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    await application.process_update(update)
+    asyncio.run(application.process_update(update))
     return Response("OK", status=200)
 
 @app.before_first_request
 def init_webhook():
-    asyncio.run(set_webhook())
-
-async def set_webhook():
-    await application.bot.set_webhook(WEBHOOK_URL)
+    asyncio.run(application.bot.set_webhook(WEBHOOK_URL))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port
