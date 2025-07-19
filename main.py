@@ -130,8 +130,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.my_chat_member.chat
+    old_status = update.my_chat_member.old_chat_member.status
     new_status = update.my_chat_member.new_chat_member.status
-    if new_status in ("member", "administrator"):
+
+    # اگر ربات تازه به گروه یا کانالی اضافه شده باشد
+    if old_status in ("left", "kicked") and new_status in ("member", "administrator"):
         data = load_data()
         data["chats"][str(chat.id)] = {
             "title": chat.title or "-",
@@ -139,6 +142,7 @@ async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "username": chat.username or "-"
         }
         save_data(data)
+
 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), menu))
