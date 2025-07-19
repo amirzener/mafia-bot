@@ -1,9 +1,9 @@
 import os
 import json
+import asyncio
 from flask import Flask, request, Response
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import asyncio
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
@@ -19,7 +19,10 @@ def load_data():
     except:
         return {
             "owner_id": OWNER_ID,
-            "admins": {"super_admins": [], "normal_admins": []},
+            "admins": {
+                "super_admins": [],
+                "normal_admins": []
+            },
             "chats": {},
             "panel": {}
         }
@@ -55,33 +58,29 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = load_data()
     text = update.message.text
-
     if text == "منو":
         if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
             sent = await update.message.reply_text("📋 پنل شما", reply_markup=main_menu_keyboard(user_id, data))
             data["panel"] = {"user_id": user_id, "message_id": sent.message_id}
             save_data(data)
-
     elif update.message.reply_to_message and text.isdigit():
-        target_id = int(text)
-        last_action = data.get("last_action")
         if user_id == OWNER_ID or user_id in data["admins"]["super_admins"]:
-            if last_action == "add_super_admin":
+            target_id = int(text)
+            reply_text = update.message.reply_to_message.text.lower()
+            if "ارشد" in reply_text:
                 if target_id not in data["admins"]["super_admins"]:
                     data["admins"]["super_admins"].append(target_id)
                     save_data(data)
                     await update.message.reply_text(f"✅ کاربر {target_id} به مدیر ارشد اضافه شد.")
                 else:
                     await update.message.reply_text("ℹ️ این کاربر قبلاً مدیر ارشد است.")
-            elif last_action == "add_normal_admin":
+            else:
                 if target_id not in data["admins"]["normal_admins"]:
                     data["admins"]["normal_admins"].append(target_id)
                     save_data(data)
                     await update.message.reply_text(f"✅ کاربر {target_id} به مدیر معمولی اضافه شد.")
                 else:
                     await update.message.reply_text("ℹ️ این کاربر قبلاً مدیر معمولی است.")
-            data["last_action"] = None
-            save_data(data)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -117,8 +116,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(text, reply_markup=main_menu_keyboard(user_id, data))
 
     elif query.data in ["add_super_admin", "add_normal_admin"]:
-        data["last_action"] = query.data
-        save_data(data)
         await query.message.edit_text("👤 آیدی عددی کاربر مورد نظر را ریپلای کنید و عدد آیدی او را ارسال نمایید.", reply_markup=main_menu_keyboard(user_id, data))
 
 async def my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -139,9 +136,10 @@ application.add_handler(CallbackQueryHandler(button_handler))
 application.add_handler(MessageHandler(filters.StatusUpdate.MY_CHAT_MEMBER, my_chat_member))
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.process_update(update))
+async def webhook():
+    data = request.get_json(force=True)
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
     return Response("OK", status=200)
 
 @app.before_first_request
@@ -150,4 +148,4 @@ def init_webhook():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port) 
+    app.run(host="0.0.0.0", port=port)
