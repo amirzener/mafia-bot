@@ -13,67 +13,64 @@ from telegram import (
     User,
 )
 from telegram.ext import (
-    Dispatcher,
+    Application,
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
-    Filters,
-    CallbackContext,
+    filters,
+    ContextTypes,
 )
 
-# Load environment variables
+# بارگذاری متغیرهای محیطی
 load_dotenv()
 
-# Initialize Flask app
+# ایجاد برنامه Flask
 app = Flask(__name__)
 
-# Bot configuration
+# پیکربندی ربات
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Initialize bot and dispatcher
-bot = Bot(token=BOT_TOKEN)
-dispatcher = Dispatcher(bot, None, workers=0)
+# ایجاد برنامه ربات
+application = Application.builder().token(BOT_TOKEN).build()
 
-# File paths
+# مسیر فایل‌های JSON
 ADMIN_FILE = "admin.json"
 CHANNEL_FILE = "channel.json"
 GROUP_FILE = "group.json"
 ACTIVE_LIST_FILE = "activ_list.json"
 
-# Load JSON data helper functions
+# توابع کمکی برای مدیریت فایل‌های JSON
 def load_json(file_path):
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding='utf-8') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 def save_json(file_path, data):
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=4)
+    with open(file_path, "w", encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-# Initialize JSON files if they don't exist
+# ایجاد فایل‌های JSON در صورت عدم وجود
 for file in [ADMIN_FILE, CHANNEL_FILE, GROUP_FILE, ACTIVE_LIST_FILE]:
     if not os.path.exists(file):
         save_json(file, {})
 
-# Helper function to check if user is owner
+# توابع کمکی برای بررسی دسترسی
 def is_owner(user_id):
     return user_id == OWNER_ID
 
-# Helper function to check if user is admin
 def is_admin(user_id):
     admins = load_json(ADMIN_FILE)
     return str(user_id) in admins.keys()
 
-# Helper function to check if user is owner or admin
 def is_owner_or_admin(user_id):
     return is_owner(user_id) or is_admin(user_id)
 
-# Handle new chat members (groups/channels)
-def handle_new_chat_member(update: Update, context: CallbackContext):
+# مدیریت اضافه شدن به گروه/کانال جدید
+async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     if chat.type == "channel":
         channels = load_json(CHANNEL_FILE)
@@ -84,7 +81,10 @@ def handle_new_chat_member(update: Update, context: CallbackContext):
             "date_added": datetime.now().isoformat(),
         }
         save_json(CHANNEL_FILE, channels)
-        bot.send_message(OWNER_ID, f"✅ Added to channel:\n{chat.title}\nID: {chat.id}")
+        await context.bot.send_message(
+            OWNER_ID, 
+            f"✅ به کانال اضافه شد:\n{chat.title}\nID: {chat.id}"
+        )
     elif chat.type in ["group", "supergroup"]:
         groups = load_json(GROUP_FILE)
         groups[str(chat.id)] = {
@@ -94,31 +94,34 @@ def handle_new_chat_member(update: Update, context: CallbackContext):
             "date_added": datetime.now().isoformat(),
         }
         save_json(GROUP_FILE, groups)
-        bot.send_message(OWNER_ID, f"✅ Added to group:\n{chat.title}\nID: {chat.id}")
+        await context.bot.send_message(
+            OWNER_ID, 
+            f"✅ به گروه اضافه شد:\n{chat.title}\nID: {chat.id}"
+        )
 
-# Command handlers
-def menu_command(update: Update, context: CallbackContext):
+# دستورات ربات
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         return
     
-    # Delete the command message
-    update.message.delete()
+    # حذف پیام دستور
+    await update.message.delete()
     
-    # Show the menu panel
-    show_main_menu(update, context)
+    # نمایش منوی اصلی
+    await show_main_menu(update, context)
 
-def list_command(update: Update, context: CallbackContext):
+async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner_or_admin(update.effective_user.id):
         return
     
-    update.message.reply_text("⏰ ساعت را به صورت 4 رقمی وارد کنید (مثال: 1930):")
+    await update.message.reply_text("⏰ ساعت را به صورت 4 رقمی وارد کنید (مثال: 1930):")
     context.user_data["waiting_for_time"] = True
 
-def handle_text_message(update: Update, context: CallbackContext):
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     message = update.message
     
-    # Check if we're waiting for time input for active list
+    # بررسی انتظار برای دریافت زمان
     if context.user_data.get("waiting_for_time"):
         if not is_owner_or_admin(user_id):
             context.user_data.pop("waiting_for_time", None)
@@ -126,7 +129,7 @@ def handle_text_message(update: Update, context: CallbackContext):
         
         time_str = message.text.strip()
         if len(time_str) == 4 and time_str.isdigit():
-            # Create new active list
+            # ایجاد لیست فعال جدید
             active_list = load_json(ACTIVE_LIST_FILE)
             list_id = datetime.now().strftime("%Y%m%d%H%M%S")
             
@@ -139,7 +142,7 @@ def handle_text_message(update: Update, context: CallbackContext):
             }
             save_json(ACTIVE_LIST_FILE, active_list)
             
-            # Send message to channels
+            # ارسال پیام به کانال‌ها
             channels = load_json(CHANNEL_FILE)
             for channel_id in channels:
                 try:
@@ -152,27 +155,27 @@ def handle_text_message(update: Update, context: CallbackContext):
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    sent_msg = bot.send_message(
+                    sent_msg = await context.bot.send_message(
                         chat_id=channel_id,
                         text=f"🎮 جهت ثبت نام در بازی در ساعت {time_str} اعلام حضور کنید:",
                         reply_markup=reply_markup,
                     )
                     
-                    # Save message ID for later updates
+                    # ذخیره اطلاعات پیام برای به‌روزرسانی‌های بعدی
                     active_list[list_id]["channel_message_id"] = sent_msg.message_id
                     active_list[list_id]["channel_id"] = channel_id
                     save_json(ACTIVE_LIST_FILE, active_list)
                 except Exception as e:
-                    print(f"Failed to send message to channel {channel_id}: {e}")
+                    print(f"خطا در ارسال پیام به کانال {channel_id}: {e}")
             
-            message.reply_text(f"✅ لیست بازی برای ساعت {time_str} ایجاد شد.")
+            await message.reply_text(f"✅ لیست بازی برای ساعت {time_str} ایجاد شد.")
         else:
-            message.reply_text("⚠️ لطفا ساعت را به صورت 4 رقمی وارد کنید (مثال: 1930).")
+            await message.reply_text("⚠️ لطفا ساعت را به صورت 4 رقمی وارد کنید (مثال: 1930).")
         
         context.user_data.pop("waiting_for_time", None)
 
-# Menu panel functions
-def show_main_menu(update: Update, context: CallbackContext):
+# توابع منو
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📋 نمایش لیست گروه ها", callback_data="show_groups")],
         [InlineKeyboardButton("📢 نمایش لیست کانال ها", callback_data="show_channels")],
@@ -182,17 +185,17 @@ def show_main_menu(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        update.callback_query.edit_message_text(
+        await update.callback_query.edit_message_text(
             text="🔹 پنل مدیریت ربات 🔹",
             reply_markup=reply_markup,
         )
     else:
-        update.message.reply_text(
+        await update.message.reply_text(
             text="🔹 پنل مدیریت ربات 🔹",
             reply_markup=reply_markup,
         )
 
-def show_groups_menu(update: Update, context: CallbackContext):
+async def show_groups_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     groups = load_json(GROUP_FILE)
     keyboard = []
     
@@ -207,12 +210,12 @@ def show_groups_menu(update: Update, context: CallbackContext):
     keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.callback_query.edit_message_text(
+    await update.callback_query.edit_message_text(
         text="📋 لیست گروه ها:",
         reply_markup=reply_markup,
     )
 
-def show_channels_menu(update: Update, context: CallbackContext):
+async def show_channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     channels = load_json(CHANNEL_FILE)
     keyboard = []
     
@@ -227,12 +230,12 @@ def show_channels_menu(update: Update, context: CallbackContext):
     keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.callback_query.edit_message_text(
+    await update.callback_query.edit_message_text(
         text="📢 لیست کانال ها:",
         reply_markup=reply_markup,
     )
 
-def show_admins_list(update: Update, context: CallbackContext):
+async def show_admins_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admins = load_json(ADMIN_FILE)
     admin_list = "\n".join(
         f"👤 {info['alias']} - `{admin_id}`"
@@ -242,37 +245,37 @@ def show_admins_list(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.callback_query.edit_message_text(
+    await update.callback_query.edit_message_text(
         text=f"👥 لیست ادمین ها:\n\n{admin_list}",
         reply_markup=reply_markup,
         parse_mode="Markdown",
     )
 
-# Callback query handlers
-def handle_callback_query(update: Update, context: CallbackContext):
+# مدیریت رویدادهای دکمه‌ها
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     
     if not is_owner(user_id):
-        query.answer("⛔ شما مجاز به استفاده از این پنل نیستید.")
+        await query.answer("⛔ شما مجاز به استفاده از این پنل نیستید.")
         return
     
     data = query.data
     
     if data == "show_groups":
-        show_groups_menu(update, context)
+        await show_groups_menu(update, context)
     elif data == "show_channels":
-        show_channels_menu(update, context)
+        await show_channels_menu(update, context)
     elif data == "show_admins":
-        show_admins_list(update, context)
+        await show_admins_list(update, context)
     elif data == "back_to_main":
-        show_main_menu(update, context)
+        await show_main_menu(update, context)
     elif data == "close_panel":
-        query.delete_message()
+        await query.delete_message()
     elif data.startswith("leave_chat:"):
         _, chat_id, chat_type = data.split(":")
         try:
-            bot.leave_chat(chat_id=int(chat_id))
+            await context.bot.leave_chat(chat_id=int(chat_id))
             
             if chat_type == "group":
                 groups = load_json(GROUP_FILE)
@@ -283,17 +286,17 @@ def handle_callback_query(update: Update, context: CallbackContext):
                 channels.pop(chat_id, None)
                 save_json(CHANNEL_FILE, channels)
             
-            query.answer(f"✅ از {chat_type} خارج شد.")
+            await query.answer(f"✅ از {chat_type} خارج شد.")
             if chat_type == "group":
-                show_groups_menu(update, context)
+                await show_groups_menu(update, context)
             else:
-                show_channels_menu(update, context)
+                await show_channels_menu(update, context)
         except Exception as e:
-            query.answer(f"❌ خطا در خارج شدن: {str(e)}")
+            await query.answer(f"❌ خطا در خارج شدن: {str(e)}")
     elif data.startswith(("join_player:", "join_observer:", "start_game:")):
-        handle_game_actions(update, context)
+        await handle_game_actions(update, context)
 
-def handle_game_actions(update: Update, context: CallbackContext):
+async def handle_game_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
@@ -303,90 +306,90 @@ def handle_game_actions(update: Update, context: CallbackContext):
     list_data = active_list.get(list_id)
     
     if not list_data:
-        query.answer("❌ این لیست منقضی شده است.")
+        await query.answer("❌ این لیست منقضی شده است.")
         return
     
     if action == "join_player":
-        # Any user can join as player
+        # هر کاربری می‌تواند به عنوان بازیکن ثبت نام کند
         if user_id not in list_data["players"]:
             list_data["players"].append(user_id)
             active_list[list_id] = list_data
             save_json(ACTIVE_LIST_FILE, active_list)
-            query.answer("✅ شما به عنوان بازیکن ثبت نام کردید.")
+            await query.answer("✅ شما به عنوان بازیکن ثبت نام کردید.")
         else:
-            query.answer("⚠️ شما قبلا ثبت نام کرده اید.")
+            await query.answer("⚠️ شما قبلا ثبت نام کرده اید.")
         
-        update_active_list_message(list_id)
+        await update_active_list_message(list_id, context)
     
     elif action == "join_observer":
-        # Only owner/admins can join as observer
+        # فقط مالک و ادمین‌ها می‌توانند ناظر باشند
         if not is_owner_or_admin(user_id):
-            query.answer("⛔ فقط ادمین ها می‌توانند ناظر باشند.")
+            await query.answer("⛔ فقط ادمین ها می‌توانند ناظر باشند.")
             return
         
         if len(list_data["observers"]) >= 2:
-            query.answer("⚠️ حد مجاز ناظرین (2 نفر) تکمیل شده است.")
+            await query.answer("⚠️ حد مجاز ناظرین (2 نفر) تکمیل شده است.")
             return
         
         if user_id not in list_data["observers"]:
             list_data["observers"].append(user_id)
             active_list[list_id] = list_data
             save_json(ACTIVE_LIST_FILE, active_list)
-            query.answer("✅ شما به عنوان ناظر ثبت نام کردید.")
+            await query.answer("✅ شما به عنوان ناظر ثبت نام کردید.")
         else:
-            query.answer("⚠️ شما قبلا به عنوان ناظر ثبت نام کرده اید.")
+            await query.answer("⚠️ شما قبلا به عنوان ناظر ثبت نام کرده اید.")
         
-        update_active_list_message(list_id)
+        await update_active_list_message(list_id, context)
     
     elif action == "start_game":
-        # Only owner/admins can start the game
+        # فقط مالک و ادمین‌ها می‌توانند بازی را شروع کنند
         if not is_owner_or_admin(user_id):
-            query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
+            await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
             return
         
-        # Notify players in groups
+        # اطلاع‌رسانی به بازیکنان در گروه‌ها
         groups = load_json(GROUP_FILE)
         for group_id in groups:
             try:
-                # Tag players in batches of 5
+                # تگ کردن بازیکنان در دسته‌های 5 نفره
                 players = list_data["players"]
                 for i in range(0, len(players), 5):
                     batch = players[i:i+5]
                     mentions = " ".join(f"<a href='tg://user?id={p}'>.</a>" for p in batch)
-                    bot.send_message(
+                    await context.bot.send_message(
                         chat_id=group_id,
                         text=f"🎮 دوستان عزیز لابی زده شد تشریف بیارید:\n{mentions}",
                         parse_mode="HTML",
                     )
             except Exception as e:
-                print(f"Failed to notify group {group_id}: {e}")
+                print(f"خطا در اطلاع‌رسانی به گروه {group_id}: {e}")
         
-        # Delete the channel message and send final notification
+        # حذف پیام لیست و ارسال پیام نهایی
         try:
-            bot.delete_message(
+            await context.bot.delete_message(
                 chat_id=list_data["channel_id"],
                 message_id=list_data["channel_message_id"],
             )
-            bot.send_message(
+            await context.bot.send_message(
                 chat_id=list_data["channel_id"],
                 text="🎮 دوستان عزیز لابی زده شد تشریف بیارید",
             )
         except Exception as e:
-            print(f"Failed to update channel message: {e}")
+            print(f"خطا در به‌روزرسانی پیام کانال: {e}")
         
-        # Clear the active list
+        # پاک کردن لیست فعال
         active_list.pop(list_id, None)
         save_json(ACTIVE_LIST_FILE, active_list)
-        query.answer("✅ بازی شروع شد!")
+        await query.answer("✅ بازی شروع شد!")
 
-def update_active_list_message(list_id):
+async def update_active_list_message(list_id, context: ContextTypes.DEFAULT_TYPE):
     active_list = load_json(ACTIVE_LIST_FILE)
     list_data = active_list.get(list_id)
     
     if not list_data or "channel_id" not in list_data:
         return
     
-    # Prepare players list
+    # آماده‌سازی لیست بازیکنان
     players_text = ""
     if list_data["players"]:
         players_text = "\n".join(
@@ -396,7 +399,7 @@ def update_active_list_message(list_id):
     else:
         players_text = "هنوز بازیکنی ثبت نام نکرده است."
     
-    # Prepare observers list
+    # آماده‌سازی لیست ناظران
     observers_text = ""
     admins = load_json(ADMIN_FILE)
     if list_data["observers"]:
@@ -423,7 +426,7 @@ def update_active_list_message(list_id):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     try:
-        bot.edit_message_text(
+        await context.bot.edit_message_text(
             chat_id=list_data["channel_id"],
             message_id=list_data["channel_message_id"],
             text=message_text,
@@ -431,32 +434,35 @@ def update_active_list_message(list_id):
             parse_mode="HTML",
         )
     except Exception as e:
-        print(f"Failed to update active list message: {e}")
+        print(f"خطا در به‌روزرسانی لیست فعال: {e}")
 
-# Set up handlers
-dispatcher.add_handler(CommandHandler("menu", menu_command))
-dispatcher.add_handler(CommandHandler("list", list_command))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text_message))
-dispatcher.add_handler(CallbackQueryHandler(handle_callback_query))
+# مدیریت عضویت جدید در چت
+async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.chat_member.new_chat_member.user.id == application.bot.id:
+        await handle_new_chat_member(update, context)
 
-# Handle new chat members (for when bot is added to groups/channels)
-def handle_chat_member_update(update: Update, context: CallbackContext):
-    if update.chat_member.new_chat_member.user.id == bot.id:
-        handle_new_chat_member(update, context)
+# تنظیم هندلرها
+application.add_handler(CommandHandler("menu", menu_command))
+application.add_handler(CommandHandler("list", list_command))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+application.add_handler(CallbackQueryHandler(handle_callback_query))
+application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_member_update))
 
-dispatcher.add_handler(MessageHandler(Filters.status_update, handle_chat_member_update))
-
-# Flask route for webhook
+# مسیر وب‌هوک برای Flask
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
+async def webhook():
+    update = Update.de_json(await request.get_json(), application.bot)
+    await application.process_update(update)
     return jsonify({'status': 'ok'})
 
-# Set webhook
-def set_webhook():
-    bot.set_webhook(url=WEBHOOK_URL)
+# تنظیم وب‌هوک هنگام راه‌اندازی
+async def set_webhook():
+    await application.bot.set_webhook(url=WEBHOOK_URL)
 
 if __name__ == '__main__':
-    set_webhook()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # اجرای برنامه
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get('PORT', 5000)),
+        webhook_url=WEBHOOK_URL,
+    )
