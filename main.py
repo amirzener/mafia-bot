@@ -28,9 +28,12 @@ from telegram.ext import (
 app = Flask(__name__)
 
 # پیکربندی ربات
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+
+# بعد (مستقیماً از محیط می‌خواند):
+BOT_TOKEN = os.environ.get('BOT_TOKEN')  # دقت کنید به حروف بزرگ/کوچک حساس است
+OWNER_ID = int(os.environ.get('OWNER_ID'))
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 
 # ایجاد برنامه ربات
 application = Application.builder().token(BOT_TOKEN).build()
