@@ -463,6 +463,7 @@ async def set_webhook():
     await application.bot.set_webhook(url=WEBHOOK_URL)
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
     # اجرای برنامه
     application.run_webhook(
         listen="0.0.0.0",
