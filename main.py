@@ -11,20 +11,30 @@ from telegram.ext import (
     CallbackContext
 )
 from flask import Flask, request, jsonify
+
 app = Flask(__name__)
+
 # تنظیمات اولیه
 TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID"))
+OWNER_ID = int(os.getenv("OWNER_ID", 0))  # مقدار پیش‌فرض 0 اگر وجود نداشت
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
 # بارگذاری داده‌ها
 def load_data():
     try:
         with open('data.json', 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            # اگر مالک در فایل داده وجود ندارد اما در env تنظیم شده، آن را تنظیم کن
+            if 'owner' not in data or data['owner'] is None:
+                if OWNER_ID != 0:
+                    data['owner'] = OWNER_ID
+                    with open('data.json', 'w') as f:
+                        json.dump(data, f, indent=4)
+            return data
     except (FileNotFoundError, json.JSONDecodeError):
         # اگر فایل وجود نداشت یا خراب بود، یک ساختار پیش‌فرض ایجاد می‌کنیم
         default_data = {
-            "owner": None,
+            "owner": OWNER_ID if OWNER_ID != 0 else None,
             "senior_admins": [],
             "normal_admins": [],
             "chats": []
@@ -497,6 +507,7 @@ async def open_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = create_senior_menu()
         text = "پنل مدیریت مدیر ارشد:"
     else:
+        await update.message.reply_text("شما دسترسی به پنل مدیریت ندارید.")
         return
     
     await update.message.reply_text(
@@ -535,23 +546,33 @@ async def remove_chat_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تنظیم مالک اولیه
 async def set_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
+    user_id = update.message.from_user.id
     
-    if data.get("owner") is not None:
+    # اگر مالک از قبل تنظیم شده و کاربر فعلی مالک نیست
+    if data.get("owner") is not None and user_id != data.get("owner"):
+        await update.message.reply_text("شما مجوز دسترسی به این ربات را ندارید.")
         return
     
-    data["owner"] = update.message.from_user.id
-    save_data(data)
-    
-    await update.message.reply_text(
-        "شما به عنوان مالک ربات تنظیم شدید. از این پس می‌توانید از پنل مدیریت استفاده کنید."
-    )
+    # اگر مالک وجود ندارد و کاربر فعلی مالک تعیین شده در env است
+    if data.get("owner") is None and user_id == OWNER_ID:
+        data["owner"] = user_id
+        save_data(data)
+        await update.message.reply_text(
+            "شما به عنوان مالک ربات تنظیم شدید. از این پس می‌توانید از پنل مدیریت استفاده کنید."
+        )
+        # نمایش پنل مدیریت
+        reply_markup = create_owner_menu()
+        await update.message.reply_text(
+            text="پنل مدیریت مالک:",
+            reply_markup=reply_markup
+        )
+    else:
+        await update.message.reply_text("شما مجوز دسترسی به این ربات را ندارید.")
 
 # هندلرهای اصلی
 def main():
     # بارگذاری داده‌ها و تنظیم مالک
     data = load_data()
-    global OWNER_ID
-    OWNER_ID = data.get("owner")
     
     # ایجاد برنامه
     application = Application.builder().token(TOKEN).build()
@@ -583,40 +604,42 @@ def main():
     application.add_handler(CallbackQueryHandler(do_remove_normal, pattern='^do_remove_normal_'))
     
     # هندلرهای حالت‌ها
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_senior_admin), group=1)
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_normal_admin), group=2)
+    conv_handler_senior = MessageHandler(filters.TEXT & (~filters.COMMAND), save_senior_admin)
+    application.add_handler(conv_handler_senior, group=1)
+    
+    conv_handler_normal = MessageHandler(filters.TEXT & (~filters.COMMAND), save_normal_admin)
+    application.add_handler(conv_handler_normal, group=2)
     
     # هندلرهای عضویت در چت‌ها
     application.add_handler(MessageHandler(filters.ChatType.CHANNEL | filters.ChatType.GROUP | filters.ChatType.SUPERGROUP, save_chat_info))
     application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, remove_chat_info))
     
+    return application
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    with app.app_context():
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        application.update_queue.put(update)
-        return jsonify({'status': 'ok'})
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put(update)
+    return jsonify({'status': 'ok'})
 
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    with app.app_context():
-        url = WEBHOOK_URL + '/webhook'
-        application.bot.set_webhook(url)
-        return jsonify({'status': 'webhook set', 'url': url})
-
-def run_bot():
-    # تنظیمات اصلی ربات
-    application = Application.builder().token(TOKEN).build()
-    # اضافه کردن هندلرها
-    # ...
-    return application
+    url = WEBHOOK_URL + '/webhook'
+    application.bot.set_webhook(url)
+    return jsonify({'status': 'webhook set', 'url': url})
 
 if __name__ == '__main__':
-    # فقط یک نقطه ورود!
-    application = run_bot()
-    with app.app_context():
-        # تنظیم خودکار وب‌هوک هنگام اجرا
-        url = WEBHOOK_URL + '/webhook'
-        application.bot.set_webhook(url)
-        # اجرای سرور
-        app.run(host='0.0.0.0', port=5000)
+    application = main()
+    
+    if WEBHOOK_URL:
+        # تنظیم وبهوک
+        url = f"{WEBHOOK_URL}/webhook"
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=5000,
+            url_path='webhook',
+            webhook_url=url,
+            cert=None
+        )
+    else:
+        application.run_polling()
