@@ -466,6 +466,6 @@ if __name__ == '__main__':
     # اجرای برنامه
     application.run_webhook(
         listen="0.0.0.0",
-        port=int(os.environ.get('PORT', 5000)),
+        port=port,
         webhook_url=WEBHOOK_URL,
     )
