@@ -11,7 +11,7 @@ from telegram.ext import (
     CallbackContext
 )
 from flask import Flask, request, jsonify
-
+app = Flask(__name__)
 # تنظیمات اولیه
 TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
@@ -590,25 +590,33 @@ def main():
     application.add_handler(MessageHandler(filters.ChatType.CHANNEL | filters.ChatType.GROUP | filters.ChatType.SUPERGROUP, save_chat_info))
     application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, remove_chat_info))
     
-    # راه‌اندازی وب‌هوک
-    app = Flask(__name__)
-    
     @app.route('/webhook', methods=['POST'])
-    def webhook():
+def webhook():
+    with app.app_context():
         update = Update.de_json(request.get_json(force=True), application.bot)
         application.update_queue.put(update)
         return jsonify({'status': 'ok'})
-    
-    @app.route('/set_webhook', methods=['GET'])
-    def set_webhook():
+
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    with app.app_context():
         url = WEBHOOK_URL + '/webhook'
         application.bot.set_webhook(url)
         return jsonify({'status': 'webhook set', 'url': url})
-    
-    # راه‌اندازی سرور Flask
-    if __name__ == '__main__':
-        set_webhook()
-        app.run(host='0.0.0.0', port=5000)
+
+def run_bot():
+    # تنظیمات اصلی ربات
+    application = Application.builder().token(TOKEN).build()
+    # اضافه کردن هندلرها
+    # ...
+    return application
 
 if __name__ == '__main__':
-    main()
+    # فقط یک نقطه ورود!
+    application = run_bot()
+    with app.app_context():
+        # تنظیم خودکار وب‌هوک هنگام اجرا
+        url = WEBHOOK_URL + '/webhook'
+        application.bot.set_webhook(url)
+        # اجرای سرور
+        app.run(host='0.0.0.0', port=5000)
