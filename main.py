@@ -590,7 +590,7 @@ def main():
     application.add_handler(MessageHandler(filters.ChatType.CHANNEL | filters.ChatType.GROUP | filters.ChatType.SUPERGROUP, save_chat_info))
     application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, remove_chat_info))
     
-    @app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def webhook():
     with app.app_context():
         update = Update.de_json(request.get_json(force=True), application.bot)
