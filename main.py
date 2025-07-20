@@ -1,644 +1,462 @@
-import json
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import json
+from datetime import datetime
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Bot,
+    Message,
+    Chat,
+    User,
+)
 from telegram.ext import (
-    Application,
+    Dispatcher,
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
-    ContextTypes,
-    filters,
-    CallbackContext
+    Filters,
+    CallbackContext,
 )
-from flask import Flask, request, jsonify
 
+# Load environment variables
+load_dotenv()
+
+# Initialize Flask app
 app = Flask(__name__)
 
-# تنظیمات اولیه
-TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", 0))  # مقدار پیش‌فرض 0 اگر وجود نداشت
+# Bot configuration
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# بارگذاری داده‌ها
-def load_data():
-    try:
-        with open('data.json', 'r') as f:
-            data = json.load(f)
-            # اگر مالک در فایل داده وجود ندارد اما در env تنظیم شده، آن را تنظیم کن
-            if 'owner' not in data or data['owner'] is None:
-                if OWNER_ID != 0:
-                    data['owner'] = OWNER_ID
-                    with open('data.json', 'w') as f:
-                        json.dump(data, f, indent=4)
-            return data
-    except (FileNotFoundError, json.JSONDecodeError):
-        # اگر فایل وجود نداشت یا خراب بود، یک ساختار پیش‌فرض ایجاد می‌کنیم
-        default_data = {
-            "owner": OWNER_ID if OWNER_ID != 0 else None,
-            "senior_admins": [],
-            "normal_admins": [],
-            "chats": []
-        }
-        with open('data.json', 'w') as f:
-            json.dump(default_data, f, indent=4)
-        return default_data
+# Initialize bot and dispatcher
+bot = Bot(token=BOT_TOKEN)
+dispatcher = Dispatcher(bot, None, workers=0)
 
-# ذخیره داده‌ها
-def save_data(data):
-    with open('data.json', 'w') as f:
+# File paths
+ADMIN_FILE = "admin.json"
+CHANNEL_FILE = "channel.json"
+GROUP_FILE = "group.json"
+ACTIVE_LIST_FILE = "activ_list.json"
+
+# Load JSON data helper functions
+def load_json(file_path):
+    try:
+        with open(file_path, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_json(file_path, data):
+    with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
 
-# بررسی سطح دسترسی کاربر
-def check_access(user_id, required_level):
-    data = load_data()
+# Initialize JSON files if they don't exist
+for file in [ADMIN_FILE, CHANNEL_FILE, GROUP_FILE, ACTIVE_LIST_FILE]:
+    if not os.path.exists(file):
+        save_json(file, {})
+
+# Helper function to check if user is owner
+def is_owner(user_id):
+    return user_id == OWNER_ID
+
+# Helper function to check if user is admin
+def is_admin(user_id):
+    admins = load_json(ADMIN_FILE)
+    return str(user_id) in admins.keys()
+
+# Helper function to check if user is owner or admin
+def is_owner_or_admin(user_id):
+    return is_owner(user_id) or is_admin(user_id)
+
+# Handle new chat members (groups/channels)
+def handle_new_chat_member(update: Update, context: CallbackContext):
+    chat = update.effective_chat
+    if chat.type == "channel":
+        channels = load_json(CHANNEL_FILE)
+        channels[str(chat.id)] = {
+            "title": chat.title,
+            "username": chat.username,
+            "invite_link": chat.invite_link,
+            "date_added": datetime.now().isoformat(),
+        }
+        save_json(CHANNEL_FILE, channels)
+        bot.send_message(OWNER_ID, f"✅ Added to channel:\n{chat.title}\nID: {chat.id}")
+    elif chat.type in ["group", "supergroup"]:
+        groups = load_json(GROUP_FILE)
+        groups[str(chat.id)] = {
+            "title": chat.title,
+            "username": chat.username,
+            "invite_link": chat.invite_link,
+            "date_added": datetime.now().isoformat(),
+        }
+        save_json(GROUP_FILE, groups)
+        bot.send_message(OWNER_ID, f"✅ Added to group:\n{chat.title}\nID: {chat.id}")
+
+# Command handlers
+def menu_command(update: Update, context: CallbackContext):
+    if not is_owner(update.effective_user.id):
+        return
     
-    if required_level == "owner":
-        return user_id == data.get("owner")
-    elif required_level == "senior_admin":
-        return user_id in data.get("senior_admins", []) or user_id == data.get("owner")
-    elif required_level == "normal_admin":
-        return user_id in data.get("normal_admins", []) or user_id in data.get("senior_admins", []) or user_id == data.get("owner")
-    return False
-
-# ایجاد منوی مالک
-def create_owner_menu():
-    keyboard = [
-        [InlineKeyboardButton("مدیریت مدیران ارشد", callback_data='manage_senior')],
-        [InlineKeyboardButton("مدیریت مدیران معمولی", callback_data='manage_normal')],
-        [InlineKeyboardButton("لیست مقام داران", callback_data='list_admins')],
-        [InlineKeyboardButton("لیست کانال‌ها و گروه‌ها", callback_data='list_chats')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# ایجاد منوی مدیر ارشد
-def create_senior_menu():
-    keyboard = [
-        [InlineKeyboardButton("مدیریت مدیران معمولی", callback_data='manage_normal')],
-        [InlineKeyboardButton("لیست مقام داران", callback_data='list_admins')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# مدیریت مدیران ارشد
-async def manage_senior_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    # Delete the command message
+    update.message.delete()
     
+    # Show the menu panel
+    show_main_menu(update, context)
+
+def list_command(update: Update, context: CallbackContext):
+    if not is_owner_or_admin(update.effective_user.id):
+        return
+    
+    update.message.reply_text("⏰ ساعت را به صورت 4 رقمی وارد کنید (مثال: 1930):")
+    context.user_data["waiting_for_time"] = True
+
+def handle_text_message(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    message = update.message
+    
+    # Check if we're waiting for time input for active list
+    if context.user_data.get("waiting_for_time"):
+        if not is_owner_or_admin(user_id):
+            context.user_data.pop("waiting_for_time", None)
+            return
+        
+        time_str = message.text.strip()
+        if len(time_str) == 4 and time_str.isdigit():
+            # Create new active list
+            active_list = load_json(ACTIVE_LIST_FILE)
+            list_id = datetime.now().strftime("%Y%m%d%H%M%S")
+            
+            active_list[list_id] = {
+                "creator": user_id,
+                "time": time_str,
+                "players": [],
+                "observers": [],
+                "created_at": datetime.now().isoformat(),
+            }
+            save_json(ACTIVE_LIST_FILE, active_list)
+            
+            # Send message to channels
+            channels = load_json(CHANNEL_FILE)
+            for channel_id in channels:
+                try:
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("هستم", callback_data=f"join_player:{list_id}"),
+                            InlineKeyboardButton("ناظر", callback_data=f"join_observer:{list_id}"),
+                            InlineKeyboardButton("شروع", callback_data=f"start_game:{list_id}"),
+                        ]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    sent_msg = bot.send_message(
+                        chat_id=channel_id,
+                        text=f"🎮 جهت ثبت نام در بازی در ساعت {time_str} اعلام حضور کنید:",
+                        reply_markup=reply_markup,
+                    )
+                    
+                    # Save message ID for later updates
+                    active_list[list_id]["channel_message_id"] = sent_msg.message_id
+                    active_list[list_id]["channel_id"] = channel_id
+                    save_json(ACTIVE_LIST_FILE, active_list)
+                except Exception as e:
+                    print(f"Failed to send message to channel {channel_id}: {e}")
+            
+            message.reply_text(f"✅ لیست بازی برای ساعت {time_str} ایجاد شد.")
+        else:
+            message.reply_text("⚠️ لطفا ساعت را به صورت 4 رقمی وارد کنید (مثال: 1930).")
+        
+        context.user_data.pop("waiting_for_time", None)
+
+# Menu panel functions
+def show_main_menu(update: Update, context: CallbackContext):
     keyboard = [
-        [InlineKeyboardButton("افزودن مدیر ارشد", callback_data='add_senior')],
-        [InlineKeyboardButton("حذف مدیر ارشد", callback_data='remove_senior')],
-        [InlineKeyboardButton("بازگشت", callback_data='back_to_main')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
+        [InlineKeyboardButton("📋 نمایش لیست گروه ها", callback_data="show_groups")],
+        [InlineKeyboardButton("📢 نمایش لیست کانال ها", callback_data="show_channels")],
+        [InlineKeyboardButton("👤 نمایش لیست ادمین ها", callback_data="show_admins")],
+        [InlineKeyboardButton("❌ بستن پنل", callback_data="close_panel")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(
-        text="پنل مدیریت مدیران ارشد:",
-        reply_markup=reply_markup
-    )
-
-# مدیریت مدیران معمولی
-async def manage_normal_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    keyboard = [
-        [InlineKeyboardButton("افزودن مدیر معمولی", callback_data='add_normal')],
-        [InlineKeyboardButton("حذف مدیر معمولی", callback_data='remove_normal')],
-        [InlineKeyboardButton("بازگشت", callback_data='back_to_main')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        text="پنل مدیریت مدیران معمولی:",
-        reply_markup=reply_markup
-    )
-
-# لیست مقام داران
-async def list_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    data = load_data()
-    owner_id = data.get("owner")
-    senior_admins = data.get("senior_admins", [])
-    normal_admins = data.get("normal_admins", [])
-    
-    text = "لیست مقام داران:\n\n"
-    text += f"👑 مالک: {owner_id}\n\n"
-    text += "🔴 مدیران ارشد:\n"
-    text += "\n".join([f"• {admin}" for admin in senior_admins]) + "\n\n"
-    text += "🔵 مدیران معمولی:\n"
-    text += "\n".join([f"• {admin}" for admin in normal_admins])
-    
-    keyboard = [
-        [InlineKeyboardButton("بازگشت", callback_data='back_to_main')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        text=text,
-        reply_markup=reply_markup
-    )
-
-# لیست کانال‌ها و گروه‌ها
-async def list_chats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    data = load_data()
-    chats = data.get("chats", [])
-    
-    if not chats:
-        text = "ربات در هیچ کانال یا گروهی عضو نیست."
+    if update.callback_query:
+        update.callback_query.edit_message_text(
+            text="🔹 پنل مدیریت ربات 🔹",
+            reply_markup=reply_markup,
+        )
     else:
-        text = "لیست کانال‌ها و گروه‌ها:\n\n"
-        for chat in chats:
-            text += f"• {chat.get('title', 'بدون نام')} (ID: {chat.get('id')}) - نوع: {chat.get('type')}\n"
-    
+        update.message.reply_text(
+            text="🔹 پنل مدیریت ربات 🔹",
+            reply_markup=reply_markup,
+        )
+
+def show_groups_menu(update: Update, context: CallbackContext):
+    groups = load_json(GROUP_FILE)
     keyboard = []
-    for chat in chats:
-        keyboard.append([InlineKeyboardButton(
-            f"خروج از {chat.get('title', chat.get('id'))}",
-            callback_data=f"leave_chat_{chat.get('id')}"
-        )])
     
-    keyboard.append([InlineKeyboardButton("بازگشت", callback_data='back_to_main')])
-    keyboard.append([InlineKeyboardButton("بستن پنل", callback_data='close_panel')])
+    for group_id, group_info in groups.items():
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🚫 {group_info['title']}",
+                callback_data=f"leave_chat:{group_id}:group",
+            )
+        ])
     
+    keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(
-        text=text,
-        reply_markup=reply_markup
+    update.callback_query.edit_message_text(
+        text="📋 لیست گروه ها:",
+        reply_markup=reply_markup,
     )
 
-# خروج از چت
-async def leave_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+def show_channels_menu(update: Update, context: CallbackContext):
+    channels = load_json(CHANNEL_FILE)
+    keyboard = []
     
-    chat_id = int(query.data.split('_')[-1])
-    data = load_data()
+    for channel_id, channel_info in channels.items():
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🚫 {channel_info['title']}",
+                callback_data=f"leave_chat:{channel_id}:channel",
+            )
+        ])
     
-    # حذف چت از لیست
-    data["chats"] = [chat for chat in data.get("chats", []) if chat.get("id") != chat_id]
-    save_data(data)
-    
-    # تلاش برای خروج از چت
-    try:
-        await context.bot.leave_chat(chat_id=chat_id)
-        text = f"✅ ربات با موفقیت از چت با ID {chat_id} خارج شد."
-    except Exception as e:
-        text = f"❌ خطا در خروج از چت: {str(e)}"
-    
-    keyboard = [
-        [InlineKeyboardButton("بازگشت به لیست چت‌ها", callback_data='list_chats')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
+    keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(
-        text=text,
-        reply_markup=reply_markup
+    update.callback_query.edit_message_text(
+        text="📢 لیست کانال ها:",
+        reply_markup=reply_markup,
     )
 
-# بستن پنل
-async def close_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+def show_admins_list(update: Update, context: CallbackContext):
+    admins = load_json(ADMIN_FILE)
+    admin_list = "\n".join(
+        f"👤 {info['alias']} - `{admin_id}`"
+        for admin_id, info in admins.items()
+    )
     
-    await query.edit_message_text(
-        text="پنل مدیریت بسته شد."
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    update.callback_query.edit_message_text(
+        text=f"👥 لیست ادمین ها:\n\n{admin_list}",
+        reply_markup=reply_markup,
+        parse_mode="Markdown",
     )
 
-# بازگشت به منوی اصلی
-async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Callback query handlers
+def handle_callback_query(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
-    
     user_id = query.from_user.id
-    data = load_data()
     
-    if user_id == data.get("owner"):
-        reply_markup = create_owner_menu()
-        text = "پنل مدیریت مالک:"
-    elif user_id in data.get("senior_admins", []):
-        reply_markup = create_senior_menu()
-        text = "پنل مدیریت مدیر ارشد:"
-    else:
+    if not is_owner(user_id):
+        query.answer("⛔ شما مجاز به استفاده از این پنل نیستید.")
         return
     
-    await query.edit_message_text(
-        text=text,
-        reply_markup=reply_markup
-    )
+    data = query.data
+    
+    if data == "show_groups":
+        show_groups_menu(update, context)
+    elif data == "show_channels":
+        show_channels_menu(update, context)
+    elif data == "show_admins":
+        show_admins_list(update, context)
+    elif data == "back_to_main":
+        show_main_menu(update, context)
+    elif data == "close_panel":
+        query.delete_message()
+    elif data.startswith("leave_chat:"):
+        _, chat_id, chat_type = data.split(":")
+        try:
+            bot.leave_chat(chat_id=int(chat_id))
+            
+            if chat_type == "group":
+                groups = load_json(GROUP_FILE)
+                groups.pop(chat_id, None)
+                save_json(GROUP_FILE, groups)
+            else:
+                channels = load_json(CHANNEL_FILE)
+                channels.pop(chat_id, None)
+                save_json(CHANNEL_FILE, channels)
+            
+            query.answer(f"✅ از {chat_type} خارج شد.")
+            if chat_type == "group":
+                show_groups_menu(update, context)
+            else:
+                show_channels_menu(update, context)
+        except Exception as e:
+            query.answer(f"❌ خطا در خارج شدن: {str(e)}")
+    elif data.startswith(("join_player:", "join_observer:", "start_game:")):
+        handle_game_actions(update, context)
 
-# افزودن مدیر ارشد
-async def add_senior_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def handle_game_actions(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    user_id = query.from_user.id
+    data = query.data
     
-    await query.edit_message_text(
-        text="لطفاً شناسه عددی کاربر را برای افزودن به مدیران ارشد ارسال کنید:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("بازگشت", callback_data='manage_senior')],
-            [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-        ])
+    action, list_id = data.split(":")
+    active_list = load_json(ACTIVE_LIST_FILE)
+    list_data = active_list.get(list_id)
+    
+    if not list_data:
+        query.answer("❌ این لیست منقضی شده است.")
+        return
+    
+    if action == "join_player":
+        # Any user can join as player
+        if user_id not in list_data["players"]:
+            list_data["players"].append(user_id)
+            active_list[list_id] = list_data
+            save_json(ACTIVE_LIST_FILE, active_list)
+            query.answer("✅ شما به عنوان بازیکن ثبت نام کردید.")
+        else:
+            query.answer("⚠️ شما قبلا ثبت نام کرده اید.")
+        
+        update_active_list_message(list_id)
+    
+    elif action == "join_observer":
+        # Only owner/admins can join as observer
+        if not is_owner_or_admin(user_id):
+            query.answer("⛔ فقط ادمین ها می‌توانند ناظر باشند.")
+            return
+        
+        if len(list_data["observers"]) >= 2:
+            query.answer("⚠️ حد مجاز ناظرین (2 نفر) تکمیل شده است.")
+            return
+        
+        if user_id not in list_data["observers"]:
+            list_data["observers"].append(user_id)
+            active_list[list_id] = list_data
+            save_json(ACTIVE_LIST_FILE, active_list)
+            query.answer("✅ شما به عنوان ناظر ثبت نام کردید.")
+        else:
+            query.answer("⚠️ شما قبلا به عنوان ناظر ثبت نام کرده اید.")
+        
+        update_active_list_message(list_id)
+    
+    elif action == "start_game":
+        # Only owner/admins can start the game
+        if not is_owner_or_admin(user_id):
+            query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
+            return
+        
+        # Notify players in groups
+        groups = load_json(GROUP_FILE)
+        for group_id in groups:
+            try:
+                # Tag players in batches of 5
+                players = list_data["players"]
+                for i in range(0, len(players), 5):
+                    batch = players[i:i+5]
+                    mentions = " ".join(f"<a href='tg://user?id={p}'>.</a>" for p in batch)
+                    bot.send_message(
+                        chat_id=group_id,
+                        text=f"🎮 دوستان عزیز لابی زده شد تشریف بیارید:\n{mentions}",
+                        parse_mode="HTML",
+                    )
+            except Exception as e:
+                print(f"Failed to notify group {group_id}: {e}")
+        
+        # Delete the channel message and send final notification
+        try:
+            bot.delete_message(
+                chat_id=list_data["channel_id"],
+                message_id=list_data["channel_message_id"],
+            )
+            bot.send_message(
+                chat_id=list_data["channel_id"],
+                text="🎮 دوستان عزیز لابی زده شد تشریف بیارید",
+            )
+        except Exception as e:
+            print(f"Failed to update channel message: {e}")
+        
+        # Clear the active list
+        active_list.pop(list_id, None)
+        save_json(ACTIVE_LIST_FILE, active_list)
+        query.answer("✅ بازی شروع شد!")
+
+def update_active_list_message(list_id):
+    active_list = load_json(ACTIVE_LIST_FILE)
+    list_data = active_list.get(list_id)
+    
+    if not list_data or "channel_id" not in list_data:
+        return
+    
+    # Prepare players list
+    players_text = ""
+    if list_data["players"]:
+        players_text = "\n".join(
+            f"{i+1}. <a href='tg://user?id={p}'>بازیکن {i+1}</a>"
+            for i, p in enumerate(list_data["players"])
+        )
+    else:
+        players_text = "هنوز بازیکنی ثبت نام نکرده است."
+    
+    # Prepare observers list
+    observers_text = ""
+    admins = load_json(ADMIN_FILE)
+    if list_data["observers"]:
+        observers_text = "\n".join(
+            f"👁️ {admins.get(str(o), {}).get('alias', f'ناظر {i+1}')}"
+            for i, o in enumerate(list_data["observers"])
+        )
+    else:
+        observers_text = "هنوز ناظری ثبت نام نکرده است."
+    
+    message_text = (
+        f"🎮 لیست بازی ساعت {list_data['time']}\n\n"
+        f"🔹 بازیکنان:\n{players_text}\n\n"
+        f"🔹 ناظران:\n{observers_text}"
     )
     
-    return "waiting_for_senior_id"
-
-# ذخیره مدیر ارشد جدید
-async def save_senior_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    data = load_data()
-    
-    if not check_access(user_id, "owner"):
-        await update.message.reply_text("شما دسترسی لازم برای این عمل را ندارید.")
-        return
+    keyboard = [
+        [
+            InlineKeyboardButton("هستم", callback_data=f"join_player:{list_id}"),
+            InlineKeyboardButton("ناظر", callback_data=f"join_observer:{list_id}"),
+            InlineKeyboardButton("شروع", callback_data=f"start_game:{list_id}"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     try:
-        new_senior_id = int(update.message.text)
-        if new_senior_id in data["senior_admins"]:
-            await update.message.reply_text("این کاربر قبلاً به عنوان مدیر ارشد اضافه شده است.")
-        else:
-            data["senior_admins"].append(new_senior_id)
-            save_data(data)
-            await update.message.reply_text(f"کاربر با شناسه {new_senior_id} به مدیران ارشد اضافه شد.")
-    except ValueError:
-        await update.message.reply_text("شناسه کاربر باید یک عدد باشد.")
-    
-    return -1
-
-# حذف مدیر ارشد
-async def remove_senior_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    data = load_data()
-    senior_admins = data.get("senior_admins", [])
-    
-    if not senior_admins:
-        await query.edit_message_text(
-            text="هیچ مدیر ارشدی برای حذف وجود ندارد.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("بازگشت", callback_data='manage_senior')],
-                [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-            ])
+        bot.edit_message_text(
+            chat_id=list_data["channel_id"],
+            message_id=list_data["channel_message_id"],
+            text=message_text,
+            reply_markup=reply_markup,
+            parse_mode="HTML",
         )
-        return
-    
-    keyboard = []
-    for admin in senior_admins:
-        keyboard.append([InlineKeyboardButton(
-            f"حذف مدیر ارشد {admin}",
-            callback_data=f"confirm_remove_senior_{admin}"
-        )])
-    
-    keyboard.append([InlineKeyboardButton("بازگشت", callback_data='manage_senior')])
-    keyboard.append([InlineKeyboardButton("بستن پنل", callback_data='close_panel')])
-    
-    await query.edit_message_text(
-        text="لیست مدیران ارشد برای حذف:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    except Exception as e:
+        print(f"Failed to update active list message: {e}")
 
-# تأیید حذف مدیر ارشد
-async def confirm_remove_senior(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    admin_id = int(query.data.split('_')[-1])
-    
-    keyboard = [
-        [InlineKeyboardButton("✅ تأیید حذف", callback_data=f"do_remove_senior_{admin_id}")],
-        [InlineKeyboardButton("❌ انصراف", callback_data='remove_senior')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    
-    await query.edit_message_text(
-        text=f"آیا از حذف مدیر ارشد با شناسه {admin_id} مطمئن هستید؟",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+# Set up handlers
+dispatcher.add_handler(CommandHandler("menu", menu_command))
+dispatcher.add_handler(CommandHandler("list", list_command))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text_message))
+dispatcher.add_handler(CallbackQueryHandler(handle_callback_query))
 
-# اجرای حذف مدیر ارشد
-async def do_remove_senior(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    admin_id = int(query.data.split('_')[-1])
-    data = load_data()
-    
-    if admin_id in data["senior_admins"]:
-        data["senior_admins"].remove(admin_id)
-        save_data(data)
-        text = f"مدیر ارشد با شناسه {admin_id} با موفقیت حذف شد."
-    else:
-        text = "مدیر ارشد مورد نظر یافت نشد."
-    
-    keyboard = [
-        [InlineKeyboardButton("بازگشت به مدیریت مدیران ارشد", callback_data='manage_senior')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    
-    await query.edit_message_text(
-        text=text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+# Handle new chat members (for when bot is added to groups/channels)
+def handle_chat_member_update(update: Update, context: CallbackContext):
+    if update.chat_member.new_chat_member.user.id == bot.id:
+        handle_new_chat_member(update, context)
 
-# افزودن مدیر معمولی
-async def add_normal_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    await query.edit_message_text(
-        text="لطفاً شناسه عددی کاربر را برای افزودن به مدیران معمولی ارسال کنید:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("بازگشت", callback_data='manage_normal')],
-            [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-        ])
-    )
-    
-    return "waiting_for_normal_id"
+dispatcher.add_handler(MessageHandler(Filters.status_update, handle_chat_member_update))
 
-# ذخیره مدیر معمولی جدید
-async def save_normal_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    data = load_data()
-    
-    if not (check_access(user_id, "owner") or check_access(user_id, "senior_admin")):
-        await update.message.reply_text("شما دسترسی لازم برای این عمل را ندارید.")
-        return
-    
-    try:
-        new_normal_id = int(update.message.text)
-        if new_normal_id in data["normal_admins"]:
-            await update.message.reply_text("این کاربر قبلاً به عنوان مدیر معمولی اضافه شده است.")
-        else:
-            data["normal_admins"].append(new_normal_id)
-            save_data(data)
-            await update.message.reply_text(f"کاربر با شناسه {new_normal_id} به مدیران معمولی اضافه شد.")
-    except ValueError:
-        await update.message.reply_text("شناسه کاربر باید یک عدد باشد.")
-    
-    return -1
-
-# حذف مدیر معمولی
-async def remove_normal_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    data = load_data()
-    normal_admins = data.get("normal_admins", [])
-    
-    if not normal_admins:
-        await query.edit_message_text(
-            text="هیچ مدیر معمولی برای حذف وجود ندارد.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("بازگشت", callback_data='manage_normal')],
-                [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-            ])
-        )
-        return
-    
-    keyboard = []
-    for admin in normal_admins:
-        keyboard.append([InlineKeyboardButton(
-            f"حذف مدیر معمولی {admin}",
-            callback_data=f"confirm_remove_normal_{admin}"
-        )])
-    
-    keyboard.append([InlineKeyboardButton("بازگشت", callback_data='manage_normal')])
-    keyboard.append([InlineKeyboardButton("بستن پنل", callback_data='close_panel')])
-    
-    await query.edit_message_text(
-        text="لیست مدیران معمولی برای حذف:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-# تأیید حذف مدیر معمولی
-async def confirm_remove_normal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    admin_id = int(query.data.split('_')[-1])
-    
-    keyboard = [
-        [InlineKeyboardButton("✅ تأیید حذف", callback_data=f"do_remove_normal_{admin_id}")],
-        [InlineKeyboardButton("❌ انصراف", callback_data='remove_normal')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    
-    await query.edit_message_text(
-        text=f"آیا از حذف مدیر معمولی با شناسه {admin_id} مطمئن هستید؟",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-# اجرای حذف مدیر معمولی
-async def do_remove_normal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    admin_id = int(query.data.split('_')[-1])
-    data = load_data()
-    
-    if admin_id in data["normal_admins"]:
-        data["normal_admins"].remove(admin_id)
-        save_data(data)
-        text = f"مدیر معمولی با شناسه {admin_id} با موفقیت حذف شد."
-    else:
-        text = "مدیر معمولی مورد نظر یافت نشد."
-    
-    keyboard = [
-        [InlineKeyboardButton("بازگشت به مدیریت مدیران معمولی", callback_data='manage_normal')],
-        [InlineKeyboardButton("بستن پنل", callback_data='close_panel')]
-    ]
-    
-    await query.edit_message_text(
-        text=text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-# ست کردن مدیر معمولی با ریپلی
-async def set_normal_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    data = load_data()
-    
-    if not check_access(user_id, "senior_admin"):
-        return
-    
-    if not update.message.reply_to_message:
-        await update.message.reply_text("لطفاً این دستور را روی پیام کاربر مورد نظر ریپلی کنید.")
-        return
-    
-    if update.message.text.lower() != "ست":
-        return
-    
-    target_user = update.message.reply_to_message.from_user
-    target_id = target_user.id
-    
-    if target_id in data["normal_admins"]:
-        await update.message.reply_text("این کاربر قبلاً به عنوان مدیر معمولی تنظیم شده است.")
-        return
-    
-    data["normal_admins"].append(target_id)
-    save_data(data)
-    
-    await update.message.reply_text(
-        f"کاربر {target_user.full_name} (@{target_user.username or 'بدون یوزرنیم'}) به مدیران معمولی اضافه شد."
-    )
-
-# باز کردن پنل مدیریت
-async def open_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    data = load_data()
-    
-    if update.message.text.lower() != "منو":
-        return
-    
-    if user_id == data.get("owner"):
-        reply_markup = create_owner_menu()
-        text = "پنل مدیریت مالک:"
-    elif user_id in data.get("senior_admins", []):
-        reply_markup = create_senior_menu()
-        text = "پنل مدیریت مدیر ارشد:"
-    else:
-        await update.message.reply_text("شما دسترسی به پنل مدیریت ندارید.")
-        return
-    
-    await update.message.reply_text(
-        text=text,
-        reply_markup=reply_markup
-    )
-
-# ذخیره اطلاعات چت‌ها
-async def save_chat_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.my_chat_member.chat if update.my_chat_member else update.message.chat
-    data = load_data()
-    
-    chat_info = {
-        "id": chat.id,
-        "title": getattr(chat, 'title', None),
-        "type": chat.type,
-        "username": getattr(chat, 'username', None)
-    }
-    
-    # اگر چت جدید است یا اطلاعاتش تغییر کرده، ذخیره می‌کنیم
-    existing_chat = next((c for c in data["chats"] if c["id"] == chat.id), None)
-    if not existing_chat or existing_chat != chat_info:
-        if existing_chat:
-            data["chats"].remove(existing_chat)
-        data["chats"].append(chat_info)
-        save_data(data)
-
-# حذف اطلاعات چت هنگام خروج
-async def remove_chat_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.my_chat_member.chat
-    data = load_data()
-    
-    data["chats"] = [c for c in data["chats"] if c["id"] != chat.id]
-    save_data(data)
-
-# تنظیم مالک اولیه
-async def set_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = load_data()
-    user_id = update.message.from_user.id
-    
-    # اگر مالک از قبل تنظیم شده و کاربر فعلی مالک نیست
-    if data.get("owner") is not None and user_id != data.get("owner"):
-        await update.message.reply_text("شما مجوز دسترسی به این ربات را ندارید.")
-        return
-    
-    # اگر مالک وجود ندارد و کاربر فعلی مالک تعیین شده در env است
-    if data.get("owner") is None and user_id == OWNER_ID:
-        data["owner"] = user_id
-        save_data(data)
-        await update.message.reply_text(
-            "شما به عنوان مالک ربات تنظیم شدید. از این پس می‌توانید از پنل مدیریت استفاده کنید."
-        )
-        # نمایش پنل مدیریت
-        reply_markup = create_owner_menu()
-        await update.message.reply_text(
-            text="پنل مدیریت مالک:",
-            reply_markup=reply_markup
-        )
-    else:
-        await update.message.reply_text("شما مجوز دسترسی به این ربات را ندارید.")
-
-def main():
-    # بارگذاری داده‌ها و تنظیم مالک
-    data = load_data()
-    
-    # ایجاد برنامه
-    application = Application.builder().token(TOKEN).build()
-    
-    # افزودن هندلرهای دستورات
-    application.add_handler(CommandHandler("start", set_owner))
-    
-    # تغییر هندلرهای پیام‌ها با فیلترهای دقیق‌تر
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND) & filters.Regex(r'^(منو)$'), open_panel))
-    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & filters.Regex(r'^(ست)$'), set_normal_admin_reply))
-    
-    # افزودن هندلرهای callback با بررسی دسترسی
-    application.add_handler(CallbackQueryHandler(manage_senior_admins, pattern='^manage_senior$'))
-    application.add_handler(CallbackQueryHandler(manage_normal_admins, pattern='^manage_normal$'))
-    application.add_handler(CallbackQueryHandler(list_admins, pattern='^list_admins$'))
-    application.add_handler(CallbackQueryHandler(list_chats, pattern='^list_chats$'))
-    application.add_handler(CallbackQueryHandler(leave_chat, pattern='^leave_chat_'))
-    application.add_handler(CallbackQueryHandler(close_panel, pattern='^close_panel$'))
-    application.add_handler(CallbackQueryHandler(back_to_main, pattern='^back_to_main$'))
-    
-    application.add_handler(CallbackQueryHandler(add_senior_admin, pattern='^add_senior$'))
-    application.add_handler(CallbackQueryHandler(remove_senior_admin, pattern='^remove_senior$'))
-    application.add_handler(CallbackQueryHandler(confirm_remove_senior, pattern='^confirm_remove_senior_'))
-    application.add_handler(CallbackQueryHandler(do_remove_senior, pattern='^do_remove_senior_'))
-    
-    application.add_handler(CallbackQueryHandler(add_normal_admin, pattern='^add_normal$'))
-    application.add_handler(CallbackQueryHandler(remove_normal_admin, pattern='^remove_normal$'))
-    application.add_handler(CallbackQueryHandler(confirm_remove_normal, pattern='^confirm_remove_normal_'))
-    application.add_handler(CallbackQueryHandler(do_remove_normal, pattern='^do_remove_normal_'))
-    
-    # هندلرهای حالت‌ها
-    conv_handler_senior = MessageHandler(filters.TEXT & (~filters.COMMAND), save_senior_admin)
-    application.add_handler(conv_handler_senior, group=1)
-    
-    conv_handler_normal = MessageHandler(filters.TEXT & (~filters.COMMAND), save_normal_admin)
-    application.add_handler(conv_handler_normal, group=2)
-    
-    # هندلرهای عضویت در چت‌ها
-    application.add_handler(MessageHandler(filters.ChatType.CHANNEL | filters.ChatType.GROUP | filters.ChatType.SUPERGROUP, save_chat_info))
-    application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, remove_chat_info))
-    
-    return application
-
+# Flask route for webhook
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
     return jsonify({'status': 'ok'})
 
-@app.route('/set_webhook', methods=['GET'])
+# Set webhook
 def set_webhook():
-    url = WEBHOOK_URL + '/webhook'
-    application.bot.set_webhook(url)
-    return jsonify({'status': 'webhook set', 'url': url})
+    bot.set_webhook(url=WEBHOOK_URL)
 
 if __name__ == '__main__':
-    application = main()
-    
-    if WEBHOOK_URL:
-        # تنظیم وبهوک
-        url = f"{WEBHOOK_URL}/webhook"
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=5000,
-            url_path='webhook',
-            webhook_url=url,
-            cert=None
-        )
-    else:
-        application.run_polling()
+    set_webhook()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
