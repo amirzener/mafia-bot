@@ -569,7 +569,6 @@ async def set_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("شما مجوز دسترسی به این ربات را ندارید.")
 
-# هندلرهای اصلی
 def main():
     # بارگذاری داده‌ها و تنظیم مالک
     data = load_data()
@@ -580,11 +579,11 @@ def main():
     # افزودن هندلرهای دستورات
     application.add_handler(CommandHandler("start", set_owner))
     
-    # افزودن هندلرهای پیام‌ها
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), open_panel))
-    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY, set_normal_admin_reply))
+    # تغییر هندلرهای پیام‌ها با فیلترهای دقیق‌تر
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND) & filters.Regex(r'^(منو)$'), open_panel))
+    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & filters.Regex(r'^(ست)$'), set_normal_admin_reply))
     
-    # افزودن هندلرهای callback
+    # افزودن هندلرهای callback با بررسی دسترسی
     application.add_handler(CallbackQueryHandler(manage_senior_admins, pattern='^manage_senior$'))
     application.add_handler(CallbackQueryHandler(manage_normal_admins, pattern='^manage_normal$'))
     application.add_handler(CallbackQueryHandler(list_admins, pattern='^list_admins$'))
