@@ -13,7 +13,7 @@ from telegram.ext import (
 from flask import Flask, request, jsonify
 
 # تنظیمات اولیه
-API_TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 # بارگذاری داده‌ها
