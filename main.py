@@ -22,7 +22,7 @@ from telegram.ext import (
 )
 
 # بارگذاری متغیرهای محیطی
-load_dotenv()
+
 
 # ایجاد برنامه Flask
 app = Flask(__name__)
