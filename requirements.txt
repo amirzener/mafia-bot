@@ -1,4 +1,4 @@
-flask==2.1.0
+flask[async]==2.1.0  # یا آخرین نسخه
 werkzeug==2.1.0
 python-telegram-bot[webhooks]==20.3
 python-dotenv==0.21.0
