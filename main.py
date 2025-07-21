@@ -452,8 +452,6 @@ application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_mem
 
 from threading import Thread
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
     # دریافت داده به صورت همگام
     update = Update.de_json(request.get_json(), application.bot)
     
