@@ -2,7 +2,6 @@ import os
 import json
 from datetime import datetime
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -25,7 +24,7 @@ from telegram.ext import (
 
 
 # ایجاد برنامه Flask
-app = Flask(__name__)
+
 
 # پیکربندی ربات
 
@@ -467,11 +466,9 @@ def webhook():
 async def set_webhook():
     await application.bot.set_webhook(url=WEBHOOK_URL)
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    # اجرای برنامه
+if __name__ == "__main__":
     application.run_webhook(
         listen="0.0.0.0",
-        port=port,
-        webhook_url=WEBHOOK_URL,
+        port=int(os.environ.get("PORT", 8443)),
+        webhook_url=WEBHOOK_URL
     )
