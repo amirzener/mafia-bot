@@ -451,11 +451,16 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_t
 application.add_handler(CallbackQueryHandler(handle_callback_query))
 application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_member_update))
 
-# مسیر وب‌هوک برای Flask
+from threading import Thread
+
 @app.route('/webhook', methods=['POST'])
-async def webhook():
-    update = Update.de_json(await request.get_json(), application.bot)
-    await application.process_update(update)
+def webhook():
+    # دریافت داده به صورت همگام
+    update = Update.de_json(request.get_json(), application.bot)
+    
+    # پردازش آپدیت در پس‌زمینه
+    Thread(target=application.process_update, args=(update,)).start()
+    
     return jsonify({'status': 'ok'})
 
 # تنظیم وب‌هوک هنگام راه‌اندازی
