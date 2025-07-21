@@ -450,20 +450,6 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_t
 application.add_handler(CallbackQueryHandler(handle_callback_query))
 application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_member_update))
 
-from threading import Thread
-
-    # دریافت داده به صورت همگام
-    update = Update.de_json(request.get_json(), application.bot)
-    
-    # پردازش آپدیت در پس‌زمینه
-    Thread(target=application.process_update, args=(update,)).start()
-    
-    return jsonify({'status': 'ok'})
-
-# تنظیم وب‌هوک هنگام راه‌اندازی
-async def set_webhook():
-    await application.bot.set_webhook(url=WEBHOOK_URL)
-
 if __name__ == "__main__":
     application.run_webhook(
         listen="0.0.0.0",
