@@ -448,6 +448,6 @@ application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_mem
 if __name__ == "__main__":
     application.run_webhook(
         listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8443)),
+        port=int(os.environ.get("PORT", 10000)),
         webhook_url=WEBHOOK_URL
 )
