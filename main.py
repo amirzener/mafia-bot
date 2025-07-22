@@ -344,16 +344,16 @@ async def handle_game_actions(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     elif action == "start_game":
     # فقط مالک و ادمین‌ها می‌توانند بازی را شروع کنند
-        if not is_owner_or_admin(user_id):
-            await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
-            return
+    if not is_owner_or_admin(user_id):
+        await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
+        return
 
     # اطلاع‌رسانی به بازیکنان در گروه‌ها    
     groups = load_json(GROUP_FILE)
     players = list_data["players"]
 
-        for group_id in groups:
-            try:
+    for group_id in groups:
+        try:
             # تگ کردن بازیکنان در دسته‌های 5 نفره
             for i in range(0, len(players), 5):
                 batch = players[i:i+5]
@@ -376,23 +376,24 @@ async def handle_game_actions(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
         except Exception as e:
             print(f"❌ خطا در اطلاع‌رسانی به گروه {group_id}: {e}")
-        # حذف پیام لیست و ارسال پیام نهایی    
-        try:    
-            await context.bot.delete_message(    
-                chat_id=list_data["channel_id"],    
-                message_id=list_data["channel_message_id"],    
-            )    
-            await context.bot.send_message(    
-                chat_id=list_data["channel_id"],    
-                text="🎮 دوستان عزیز لابی زده شد تشریف بیارید",    
-            )    
-        except Exception as e:    
-            print(f"خطا در به‌روزرسانی پیام کانال: {e}")    
-            
-        # پاک کردن لیست فعال    
-        active_list.pop(list_id, None)    
-        save_json(ACTIVE_LIST_FILE, active_list)    
-        await query.answer("✅ بازی شروع شد!")
+
+    # حذف پیام لیست و ارسال پیام نهایی    
+    try:    
+        await context.bot.delete_message(    
+            chat_id=list_data["channel_id"],    
+            message_id=list_data["channel_message_id"],    
+        )    
+        await context.bot.send_message(    
+            chat_id=list_data["channel_id"],    
+            text="🎮 دوستان عزیز لابی زده شد تشریف بیارید",    
+        )    
+    except Exception as e:    
+        print(f"خطا در به‌روزرسانی پیام کانال: {e}")    
+    
+    # پاک کردن لیست فعال    
+    active_list.pop(list_id, None)    
+    save_json(ACTIVE_LIST_FILE, active_list)    
+    await query.answer("✅ بازی شروع شد!")
 
 async def update_active_list_message(list_id, context: ContextTypes.DEFAULT_TYPE):
     active_list = load_json(ACTIVE_LIST_FILE)
