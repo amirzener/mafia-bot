@@ -128,7 +128,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         if not is_owner_or_admin(user_id):
             context.user_data.pop("waiting_for_time", None)
             return
-    await update.message.delete()  
+      
 
         time_str = message.text.strip()    
         if len(time_str) == 4 and time_str.isdigit():    
