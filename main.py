@@ -490,8 +490,14 @@ async def hastam_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update_active_list_message(list_id, context)
 
     await update.message.reply_text("✅ شما به عنوان بازیکن ثبت نام شدید.")
+async def check_hastam(update, context):
+    if update.message.text.strip() =="ثبت نام":
+        await hastam_callback(update, context)
 
-application.add_handler(CommandHandler("هستم", hastam_command))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_hastam))
+
+app.run_polling()
+application.add_handler(CommandHandler("hastam", hastam_command))
 # تنظیم هندلرها
 application.add_handler(CommandHandler("start", start_command))
 application.add_handler(CommandHandler("menu", menu_command))
