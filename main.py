@@ -343,28 +343,39 @@ async def handle_game_actions(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update_active_list_message(list_id, context)
 
     elif action == "start_game":
-        # فقط مالک و ادمین‌ها می‌توانند بازی را شروع کنند
-        if not is_owner_or_admin(user_id):
-            await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
-            return
+    # فقط مالک و ادمین‌ها می‌توانند بازی را شروع کنند
+    if not is_owner_or_admin(user_id):
+        await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
+        return
 
-        # اطلاع‌رسانی به بازیکنان در گروه‌ها    
-        groups = load_json(GROUP_FILE)    
-        for group_id in groups:    
-            try:    
-                # تگ کردن بازیکنان در دسته‌های 5 نفره    
-                players = list_data["players"]    
-                for i in range(0, len(players), 5):    
-                    batch = players[i:i+5]    
-                    mentions = " ".join(f"<a href='tg://user?id={p['id']}'>.</a>" for p in batch)    
-                    await context.bot.send_message(    
-                        chat_id=group_id,    
-                        text=f"🎮 دوستان عزیز لابی زده شد تشریف بیارید:\n{mentions}",    
-                        parse_mode="HTML",    
-                    )    
-            except Exception as e:    
-                print(f"خطا در اطلاع‌رسانی به گروه {group_id}: {e}")    
-            
+    # اطلاع‌رسانی به بازیکنان در گروه‌ها    
+    groups = load_json(GROUP_FILE)
+    players = list_data["players"]
+
+    for group_id in groups:
+        try:
+            # تگ کردن بازیکنان در دسته‌های 5 نفره
+            for i in range(0, len(players), 5):
+                batch = players[i:i+5]
+                mentions = ""
+
+                for p in batch:
+                    try:
+                        user_obj = await context.bot.get_chat(p["id"])
+                        if user_obj.username:
+                            mentions += f"@{user_obj.username} "
+                        else:
+                            mentions += f"<a href='tg://user?id={p['id']}'> {p['name']} </a> "
+                    except:
+                        mentions += f"<a href='tg://user?id={p['id']}'> {p['name']} </a> "
+
+                await context.bot.send_message(
+                    chat_id=group_id,
+                    text=f"🎮 دوستان عزیز لابی زده شد، تشریف بیارید:\n{mentions}",
+                    parse_mode="HTML",
+                )
+        except Exception as e:
+            print(f"❌ خطا در اطلاع‌رسانی به گروه {group_id}: {e}")
         # حذف پیام لیست و ارسال پیام نهایی    
         try:    
             await context.bot.delete_message(    
@@ -451,7 +462,35 @@ async def update_active_list_message(list_id, context: ContextTypes.DEFAULT_TYPE
 async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.chat_member.new_chat_member.user.id == application.bot.id:
         await handle_new_chat_member(update, context)
+async def hastam_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_name = update.effective_user.full_name
 
+    active_list = load_json(ACTIVE_LIST_FILE)
+    if not active_list:
+        await update.message.reply_text("❌ لیست فعالی موجود نیست.")
+        return
+
+    # گرفتن جدیدترین لیست فعال
+    list_id = sorted(active_list.keys())[-1]
+    list_data = active_list[list_id]
+
+    # بررسی اینکه کاربر قبلا ثبت نام نکرده
+    if user_id in [p["id"] for p in list_data["players"]]:
+        await update.message.reply_text("⚠️ شما قبلا به عنوان بازیکن ثبت نام کرده‌اید.")
+        return
+
+    # افزودن کاربر به لیست
+    list_data["players"].append({"id": user_id, "name": user_name})
+    active_list[list_id] = list_data
+    save_json(ACTIVE_LIST_FILE, active_list)
+
+    # بروزرسانی پیام کانال
+    await update_active_list_message(list_id, context)
+
+    await update.message.reply_text("✅ شما به عنوان بازیکن ثبت نام شدید.")
+
+application.add_handler(CommandHandler("هستم", hastam_command))
 # تنظیم هندلرها
 application.add_handler(CommandHandler("start", start_command))
 application.add_handler(CommandHandler("menu", menu_command))
