@@ -495,7 +495,6 @@ async def check_hastam(update, context):
         await hastam_callback(update, context)
 
 
-app.run_polling()
 application.add_handler(CommandHandler("hastam", hastam_command))
 # تنظیم هندلرها
 application.add_handler(CommandHandler("start", start_command))
