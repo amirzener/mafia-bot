@@ -1,7 +1,6 @@
 import os
 import json
 from datetime import datetime
-from dotenv import load_dotenv
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -463,18 +462,50 @@ async def update_active_list_message(list_id, context: ContextTypes.DEFAULT_TYPE
 async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.chat_member.new_chat_member.user.id == application.bot.id:
         await handle_new_chat_member(update, context)
+async def hastam_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_name = update.effective_user.full_name
 
+    active_list = load_json(ACTIVE_LIST_FILE)
+    if not active_list:
+        await update.message.reply_text("❌ لیست فعالی موجود نیست.")
+        return
+
+    # گرفتن جدیدترین لیست فعال
+    list_id = sorted(active_list.keys())[-1]
+    list_data = active_list[list_id]
+
+    # بررسی اینکه کاربر قبلا ثبت نام نکرده
+    if user_id in [p["id"] for p in list_data["players"]]:
+        await update.message.reply_text("⚠️ شما قبلا به عنوان بازیکن ثبت نام کرده‌اید.")
+        return
+
+    # افزودن کاربر به لیست
+    list_data["players"].append({"id": user_id, "name": user_name})
+    active_list[list_id] = list_data
+    save_json(ACTIVE_LIST_FILE, active_list)
+
+    # بروزرسانی پیام کانال
+    await update_active_list_message(list_id, context)
+
+    await update.message.reply_text("✅ شما به عنوان بازیکن ثبت نام شدید.")
+async def check_hastam(update, context):
+    if update.message.text.strip() =="ثبت نام":
+        await hastam_callback(update, context)
+
+
+application.add_handler(CommandHandler("hastam", hastam_command))
+# تنظیم هندلرها
 application.add_handler(CommandHandler("start", start_command))
 application.add_handler(CommandHandler("menu", menu_command))
 application.add_handler(CommandHandler("list", list_command))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 application.add_handler(CallbackQueryHandler(handle_callback_query))
 application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_member_update))
-application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, handle_chat_member_update))
 
 if __name__ == "__main__":
     application.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 10000)),
         webhook_url=WEBHOOK_URL
-             )
+                            )
