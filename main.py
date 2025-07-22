@@ -98,7 +98,7 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
 # دستورات ربات
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_owner(update.effective_user.id):
-        await update.message.reply_text("من آماده ام.")
+        await update.message.reply_text("اومدم")
     else:
         return
 
@@ -107,7 +107,7 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # حذف پیام دستور
-    await update.message.delete()
+    
 
     # نمایش منوی اصلی
     await show_main_menu(update, context)
@@ -365,7 +365,7 @@ async def handle_game_actions(update: Update, context: ContextTypes.DEFAULT_TYPE
                     mentions = " ".join(f"<a href='tg://user?id={p['id']}'>.</a>" for p in batch)    
                     await context.bot.send_message(    
                         chat_id=group_id,    
-                        text=f"🎮 دوستان عزیز لابی زده شد تشریف بیارید:\n{mentions}",    
+                        text=f"تگ کوچولو:\n{mentions}",    
                         parse_mode="HTML",    
                     )    
             except Exception as e:    
@@ -427,7 +427,7 @@ async def update_active_list_message(list_id, context: ContextTypes.DEFAULT_TYPE
 
     message_text = (
         f"Jurassic Mafia Groups\n\n"
-        f"جهت حضور در لابی نام خود را ثبت کنید.\n"
+        f"جهت حضور در لابی، وارد کانال @jorassic نام خود را ثبت کنید.\n"
         f"سازنده: {creator_name}\n"
         f"ساعت: {list_data['time'][:2]}:{list_data['time'][2:]}\n\n"
         f"بازیکنان:\n{players_text}\n\n"
