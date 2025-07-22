@@ -344,9 +344,9 @@ async def handle_game_actions(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     elif action == "start_game":
     # فقط مالک و ادمین‌ها می‌توانند بازی را شروع کنند
-    if not is_owner_or_admin(user_id):
-        await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
-        return
+        if not is_owner_or_admin(user_id):
+            await query.answer("⛔ فقط ادمین ها می‌توانند بازی را شروع کنند.")
+            return
 
     # اطلاع‌رسانی به بازیکنان در گروه‌ها    
     groups = load_json(GROUP_FILE)
