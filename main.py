@@ -21,7 +21,7 @@ from telegram.ext import (
 )
 
 # بارگذاری متغیرهای محیطی
-load_dotenv()
+
 
 # پیکربندی ربات (مستقیماً از محیط می‌خواند):
 BOT_TOKEN = os.environ.get('BOT_TOKEN')  # دقت کنید به حروف بزرگ/کوچک حساس است
