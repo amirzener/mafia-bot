@@ -494,7 +494,6 @@ async def check_hastam(update, context):
     if update.message.text.strip() =="ثبت نام":
         await hastam_callback(update, context)
 
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_hastam))
 
 app.run_polling()
 application.add_handler(CommandHandler("hastam", hastam_command))
@@ -505,6 +504,7 @@ application.add_handler(CommandHandler("list", list_command))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 application.add_handler(CallbackQueryHandler(handle_callback_query))
 application.add_handler(MessageHandler(filters.StatusUpdate.ALL, handle_chat_member_update))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_hastam))
 
 if __name__ == "__main__":
     application.run_webhook(
