@@ -128,6 +128,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         if not is_owner_or_admin(user_id):
             context.user_data.pop("waiting_for_time", None)
             return
+    await update.message.delete()  
 
         time_str = message.text.strip()    
         if len(time_str) == 4 and time_str.isdigit():    
@@ -426,12 +427,12 @@ async def update_active_list_message(list_id, context: ContextTypes.DEFAULT_TYPE
             creator_name = admin_info.get("alias", "Admin")
 
     message_text = (
-        f"Jurassic Mafia Groups\n\n"
-        f"جهت حضور در لابی، وارد کانال @jorassic نام خود را ثبت کنید.\n"
-        f"سازنده: {creator_name}\n"
-        f"ساعت: {list_data['time'][:2]}:{list_data['time'][2:]}\n\n"
-        f"بازیکنان:\n{players_text}\n\n"
-        f"ناظران:\n{observers_text}"
+        f"   🌟𝑱𝑼𝑹𝑨𝑺𝑺𝑰𝑪 𝑴𝑨𝑭𝑰𝑨 𝑮𝑹𝑶𝑼𝑷🌟\n\n"
+        f"برای شرکت در لابی، وارد کانال✅ @jurassicmafia.شده و نام خود را ثبت کنید.\n"
+        f"🎗سازنده لابی: {creator_name}\n"
+        f"⏰ساعت: {list_data['time'][:2]}:{list_data['time'][2:]}\n\n"
+        f"🎭بازیکنان:\n{players_text}\n\n"
+        f"🗿ناظران:\n{observers_text}"
     )
 
     keyboard = [
