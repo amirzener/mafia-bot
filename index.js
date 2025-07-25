@@ -634,7 +634,6 @@ async function updateActiveListMessage(listId, telegram, AdminModel, ActiveListM
     });
 
     // راه‌اندازی ربات
-      
     if (WEBHOOK_URL && HOOK_PATH) {
       // حالت وب‌هوک
       try {
@@ -656,24 +655,15 @@ async function updateActiveListMessage(listId, telegram, AdminModel, ActiveListM
       }
     } else {
       // حالت پولینگ
+      console.log('ℹ️ حالت وب‌هوک غیرفعال است، درحال راه‌اندازی در حالت پولینگ...');
       bot.launch();
-      console.log('🔃 ربات در حالت پولینگ راه‌اندازی شد');
     }
-
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
-  } catch (error) {
-    console.error('⛔ خطا در راه‌اندازی ربات:', error);
-    process.exit(1);
-  }
-})();}
 
     // مدیریت خاتمه ربات
     process.once('SIGINT', () => bot.stop('SIGINT'));
     process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
   } catch (error) {
-    console.error('خطا در راه‌اندازی ربات:', error);
+    console.error('⛔ خطا در راه‌اندازی ربات:', error);
     process.exit(1);
   }
 })();
