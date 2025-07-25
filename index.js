@@ -1,10 +1,7 @@
 const { Telegraf } = require('telegraf');
 const { Sequelize, DataTypes } = require('sequelize');
 const fs = require('fs');
-const dotenv = require('dotenv');
 
-// تنظیمات محیطی
-dotenv.config();
 
 // مقادیر مورد نیاز از فایل .env
 const BOT_TOKEN = process.env.BOT_TOKEN;
