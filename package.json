@@ -1,0 +1,22 @@
+{
+  "name": "mafia-bot-node",
+  "version": "1.0.0",
+  "description": "مدیریت گروه‌های مافیا در تلگرام (نسخه Node.js)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.12.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fs-extra": "^11.2.0",
+    "node-cron": "^3.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4"
+  }
+}
