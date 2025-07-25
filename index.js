@@ -2,8 +2,6 @@ const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
-const { Sequelize } = require('sequelize');
-const { session, SequelizeSession } = require('telegraf-session-sequelize');
 
 dotenv.config();
 
@@ -13,6 +11,25 @@ const OWNER_ID = parseInt(process.env.OWNER_ID);
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
 
+const session = require('express-session');
+const SequelizeStore = require('connect-session-sequelize')(session.Store);
+
+const sequelize = new Sequelize(DATABASE_URL);
+
+const sessionMiddleware = session({
+  store: new SequelizeStore({
+    db: sequelize,
+    tableName: 'sessions',
+    checkExpirationInterval: 15 * 60 * 1000, // هر 15 دقیقه بررسی انقضا
+    expiration: 24 * 60 * 60 * 1000 // 1 روز
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+});
+
+bot.use(sessionMiddleware);
 // اتصال به PostgreSQL
 const sequelize = new Sequelize(DATABASE_URL, {
   dialect: 'postgres',
