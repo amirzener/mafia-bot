@@ -9,9 +9,15 @@ dotenv.config();
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const OWNER_ID = parseInt(process.env.OWNER_ID);
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
+const DATABASE_URL = process.env.DATABASE_URL;
 
 const bot = new Telegraf(BOT_TOKEN);
 
+// 1. تنظیم اتصال به PostgreSQL
+const session = new PostgreSQL({
+  connectionString: DATABASE_URL,
+  ttl: 86400 // زمان انقضای session (ثانیه)
+    
 // تنظیم session (قبل از همه middlewareها)
 const localSession = new LocalSession({
   database: 'session_db.json' // فایل ذخیره sessionها
