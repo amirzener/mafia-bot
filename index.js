@@ -12,6 +12,12 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
 const bot = new Telegraf(BOT_TOKEN);
 
+// تنظیم session (قبل از همه middlewareها)
+const localSession = new LocalSession({
+  database: 'session_db.json' // فایل ذخیره sessionها
+});
+bot.use(localSession.middleware());
+
 // مسیر فایل‌های JSON
 const ADMIN_FILE = "admin.json";
 const CHANNEL_FILE = "channel.json";
