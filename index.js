@@ -21,7 +21,7 @@ async function migrateAdminsFromJson(AdminModel) {
     try {
         // بررسی وجود فایل
         if (!fs.existsSync(ADMINS_FILE)) {
-            console.log('فایل admins.json یافت نشد، مهاجرت انجام نشد');
+            console.log('فایل admin.json یافت نشد، مهاجرت انجام نشد');
             return;
         }
 
