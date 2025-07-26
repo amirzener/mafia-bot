@@ -12,6 +12,70 @@ const WEBHOOK_PATH = `/telegraf/${BOT_TOKEN.split(':')[1]}`; // مسیر وب‌
 const PORT = process.env.PORT || 10000;
 const WEBHOOK_URL = process.env.WEBHOOK_URL; // آدرس کامل وب‌هوک از env
 
+
+// مسیر فایل admins.json
+const ADMINS_FILE = path.join(__dirname, 'admins.json');
+
+// تابع بارگذاری ادمین‌ها از JSON به دیتابیس
+async function migrateAdminsFromJson(AdminModel) {
+    try {
+        // بررسی وجود فایل
+        if (!fs.existsSync(ADMINS_FILE)) {
+            console.log('فایل admins.json یافت نشد، مهاجرت انجام نشد');
+            return;
+        }
+
+        // خواندن فایل
+        const adminsData = JSON.parse(fs.readFileSync(ADMINS_FILE, 'utf8'));
+        const adminEntries = Object.entries(adminsData);
+
+        // اگر فایل خالی باشد
+        if (adminEntries.length === 0) {
+            console.log('هیچ داده‌ای در فایل admins.json وجود ندارد');
+            fs.unlinkSync(ADMINS_FILE);
+            return;
+        }
+
+        // انتقال به دیتابیس
+        for (const [userId, adminData] of adminEntries) {
+            await AdminModel.upsert({
+                user_id: parseInt(userId),
+                alias: adminData.alias || `Admin-${userId}`,
+                added_at: adminData.added_at ? new Date(adminData.added_at) : new Date()
+            });
+        }
+
+        console.log(`✅ ${adminEntries.length} ادمین با موفقیت به دیتابیس منتقل شدند`);
+        
+        // تغییر نام فایل پس از مهاجرت
+        fs.renameSync(ADMINS_FILE, path.join(__dirname, 'admins_migrated.json'));
+    } catch (error) {
+        console.error('خطا در مهاجرت ادمین‌ها:', error);
+    }
+}
+
+// تعریف مدل Admin
+async function initModels() {
+    const Admin = sequelize.define('Admin', {
+        user_id: { type: DataTypes.BIGINT, primaryKey: true },
+        alias: { type: DataTypes.STRING },
+        added_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+    });
+
+    // همگام‌سازی مدل با دیتابیس
+    await sequelize.sync();
+    
+    // مهاجرت ادمین‌ها در اولین اجرا
+    await migrateAdminsFromJson(Admin);
+    
+    return { Admin };
+}
+
+// تابع بررسی ادمین (فقط از دیتابیس استفاده می‌کند)
+async function isAdmin(userId, AdminModel) {
+    if (isOwner(userId)) return true;
+    return !!(await AdminModel.findByPk(userId.toString()));
+}
 // تابع استخراج مسیر از URL
 const getHookPath = () => {
   if (!WEBHOOK_URL) return '';
