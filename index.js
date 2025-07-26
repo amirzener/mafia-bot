@@ -630,25 +630,37 @@ async function updateActiveListMessage(listId, telegram, AdminModel, ActiveListM
       }
     });
 
-    // راه‌اندازی ربات
-    const webhookInfo = await bot.telegram.getWebhookInfo();
-if (webhookInfo.url !== WEBHOOK_URL) {
-  await bot.telegram.setWebhook(WEBHOOK_URL);
-}
+
+    // بررسی وب‌هوک
+    if (WEBHOOK_URL && HOOK_PATH) {
+      try {
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+        if (webhookInfo.url !== WEBHOOK_URL) {
+          await bot.telegram.setWebhook(WEBHOOK_URL);
+          console.log(`✅ وب‌هوک فعال شد: ${WEBHOOK_URL}`);
+        }
+        
+        bot.launch({
+          webhook: {
+            domain: new URL(WEBHOOK_URL).hostname,
+            port: PORT,
+            hookPath: HOOK_PATH
+          }
+        });
       } catch (webhookError) {
-        console.error('❌ خطا در راه‌اندازی وب‌هوک:', webhookError);
+        console.error('❌ خطا در وب‌هوک:', webhookError);
         console.log('↪️ درحال راه‌اندازی در حالت پولینگ...');
         bot.launch(); // Fallback به حالت پولینگ
       }
-    
-      // حالت پولینگ
-      console.log('ℹ️ حالت وب‌هوک غیرفعال است، درحال راه‌اندازی در حالت پولینگ...');
+    } else {
+      console.log('ℹ️ حالت پولینگ فعال شد');
       bot.launch();
     }
 
-    // مدیریت خاتمه ربات
+    // مدیریت خاتمه
     process.once('SIGINT', () => bot.stop('SIGINT'));
     process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
   } catch (error) {
     console.error('⛔ خطا در راه‌اندازی ربات:', error);
     process.exit(1);
