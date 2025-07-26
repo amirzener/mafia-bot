@@ -1,7 +1,7 @@
 const { Telegraf } = require('telegraf');
 const { Sequelize, DataTypes } = require('sequelize');
 const fs = require('fs');
-
+const path = require('path');
 
 // مقادیر مورد نیاز از فایل .env
 const BOT_TOKEN = process.env.BOT_TOKEN;
