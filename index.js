@@ -581,7 +581,24 @@ async function updateActiveListMessage(listId, telegram, AdminModel, ActiveListM
         ctx.session = {};
       }
     });
+    bot.command('addadmin', async (ctx) => {
+      if (!isOwner(ctx.from.id)) return;
 
+  const userId = parseInt(ctx.message.text.split(' ')[1]);
+      if (!userId) return ctx.reply('ℹ️ فرمت دستور: /add [آیدی عددی]');
+
+  try {
+    const user = await ctx.telegram.getChat(userId);
+    await Admin.upsert({
+      user_id: user.id,
+      alias: `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`,
+      added_at: new Date()
+    });
+    await ctx.reply(`✅ کاربر ${user.first_name} به لیست ادمین‌ها اضافه شد`);
+  } catch (error) {
+    await ctx.reply('❌ کاربر یافت نشد');
+  }
+});
     // مدیریت رویدادهای دکمه‌ها
     bot.on('callback_query', async (ctx) => {
       const data = ctx.callbackQuery.data;
