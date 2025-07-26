@@ -14,7 +14,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL; // آدرس کامل وب‌هوک 
 
 
 // مسیر فایل admins.json
-const ADMINS_FILE = path.join(__dirname, 'admins.json');
+const ADMINS_FILE = path.join(__dirname, 'admin.json');
 
 // تابع بارگذاری ادمین‌ها از JSON به دیتابیس
 async function migrateAdminsFromJson(AdminModel) {
