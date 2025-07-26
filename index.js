@@ -640,7 +640,7 @@ if (webhookInfo.url !== WEBHOOK_URL) {
         console.log('↪️ درحال راه‌اندازی در حالت پولینگ...');
         bot.launch(); // Fallback به حالت پولینگ
       }
-    } else {
+    
       // حالت پولینگ
       console.log('ℹ️ حالت وب‌هوک غیرفعال است، درحال راه‌اندازی در حالت پولینگ...');
       bot.launch();
