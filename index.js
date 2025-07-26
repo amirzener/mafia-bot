@@ -631,20 +631,10 @@ async function updateActiveListMessage(listId, telegram, AdminModel, ActiveListM
     });
 
     // راه‌اندازی ربات
-    if (WEBHOOK_URL && HOOK_PATH) {
-      // حالت وب‌هوک
-      try {
-        await bot.telegram.setWebhook(WEBHOOK_URL);
-        console.log(`✅ وب‌هوک فعال شد | آدرس: ${WEBHOOK_URL}`);
-
-        const domain = new URL(WEBHOOK_URL).hostname;
-        bot.launch({
-          webhook: {
-            domain: domain,
-            port: PORT,
-            hookPath: HOOK_PATH
-          }
-        });
+    const webhookInfo = await bot.telegram.getWebhookInfo();
+if (webhookInfo.url !== WEBHOOK_URL) {
+  await bot.telegram.setWebhook(WEBHOOK_URL);
+}
       } catch (webhookError) {
         console.error('❌ خطا در راه‌اندازی وب‌هوک:', webhookError);
         console.log('↪️ درحال راه‌اندازی در حالت پولینگ...');
