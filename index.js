@@ -585,7 +585,7 @@ async function updateActiveListMessage(listId, telegram, AdminModel, ActiveListM
       if (!isOwner(ctx.from.id)) return;
 
   const userId = parseInt(ctx.message.text.split(' ')[1]);
-      if (!userId) return ctx.reply('ℹ️ فرمت دستور: /add [آیدی عددی]');
+      if (!userId) return ctx.reply('ℹ️ فرمت دستور:/addadmin [آیدی عددی]');
 
   try {
     const user = await ctx.telegram.getChat(userId);
