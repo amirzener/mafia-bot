@@ -55,12 +55,6 @@ async function migrateAdminsFromJson(AdminModel) {
 }
 
 // تعریف مدل Admin
-async function initModels() {
-    const Admin = sequelize.define('Admin', {
-        user_id: { type: DataTypes.BIGINT, primaryKey: true },
-        alias: { type: DataTypes.STRING },
-        added_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
-    });
 
     // همگام‌سازی مدل با دیتابیس
     await sequelize.sync();
@@ -69,7 +63,7 @@ async function initModels() {
     await migrateAdminsFromJson(Admin);
     
     return { Admin };
-}
+
 
 // تابع بررسی ادمین (فقط از دیتابیس استفاده می‌کند)
 async function isAdmin(userId, AdminModel) {
