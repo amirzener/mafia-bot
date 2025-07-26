@@ -57,13 +57,7 @@ async function migrateAdminsFromJson(AdminModel) {
 // تعریف مدل Admin
 
     // همگام‌سازی مدل با دیتابیس
-    await sequelize.sync();
     
-    // مهاجرت ادمین‌ها در اولین اجرا
-    await migrateAdminsFromJson(Admin);
-    
-    return { Admin };
-
 
 // تابع بررسی ادمین (فقط از دیتابیس استفاده می‌کند)
 async function isAdmin(userId, AdminModel) {
